@@ -85,8 +85,6 @@ func (self *stream) recv(op protocol.Op, _ transport.Transport) {
 		self.status = self.status | stSynAck
 	case opFin1:
 		self.status = self.status | stFin1
-	case OpFin2:
-		self.status = self.status | stFin2
 	case opErr:
 		self.status = self.status | stErr
 	case opWndSize:

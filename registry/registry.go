@@ -67,10 +67,8 @@ func (self *Registry) Pop(id generic.T, srv generic.U) {
 	self.init()
 	self.rLock.Lock()
 	if self.sMap[id] == nil {
-		if self.sMap[id] == nil {
-			self.rLock.Unlock()
-			return
-		}
+		self.rLock.Unlock()
+		return
 	}
 	var servicePool = self.sMap[id]
 	self.rLock.Unlock()
@@ -84,7 +82,7 @@ func (self *Registry) Pop(id generic.T, srv generic.U) {
 	delete(servicePool.srvMap, srv)
 	servicePool.rLock.Unlock()
 	self.rLock.Lock()
-	if len(self.sMap[id].srvMap) == 0 {
+	if self.sMap[id] != nil && len(self.sMap[id].srvMap) == 0 {
 		delete(self.sMap, id)
 	}
 	self.rLock.Unlock()
