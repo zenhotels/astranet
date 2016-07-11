@@ -102,9 +102,9 @@ func main() {
 	for i := 0; i < 32*1024*10; i++ {
 		atomic.AddInt64(&tail, 1)
 		go client()
-		time.Sleep(10 * time.Duration(rand.Int63n(1000)) * time.Microsecond)
+		time.Sleep(10 * time.Duration(rand.Int63n(10)) * time.Microsecond)
 		if i%100 == 0 {
-			fmt.Println(i, tail)
+			fmt.Println(i, atomic.LoadInt64(&tail))
 		}
 	}
 	for i := 0; i < 600; i++ {

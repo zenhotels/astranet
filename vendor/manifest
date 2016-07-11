@@ -1,0 +1,23 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/cenk/backoff",
+			"repository": "https://github.com/cenk/backoff",
+			"revision": "cdf48bbc1eb78d1349cbda326a4a037f7ba565c6",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/stathat/consistent",
+			"repository": "https://github.com/stathat/consistent",
+			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
+			"branch": "master"
+		},
+		{
+			"importpath": "stathat.com/c/consistent",
+			"repository": "https://github.com/stathat/consistent",
+			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
+			"branch": "master"
+		}
+	]
+}
