@@ -117,7 +117,7 @@ func (self *transport) wakeUpLoop() {
 			self.closeForced()
 		}
 
-		if time.Now().Sub(self.lastOP) > self.keepalive {
+		if time.Now().Sub(self.lastOP) > self.keepalive*10 {
 			if self.wCloseIfIdle {
 				self.Log.VLog(20, func(l *log.Logger) {
 					l.Println("NOOP Inactivity [CLOSE_IF_IDLE_OPT]", self, self.id)

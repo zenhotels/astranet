@@ -144,17 +144,20 @@ func (self *Registry) Sync(other *Registry, onAdd, onDelete func(generic.T, gene
 	self.init()
 	other.init()
 	var added, deleted []Pair
-	self.rLock.RLock()
-	other.rLock.RLock()
 
 	var inSync = map[generic.T]bool{}
 
+	self.rLock.RLock()
 	for service, sPool := range self.sMap {
+		self.rLock.RUnlock()
+
+		other.rLock.RLock()
+		var sMap = other.sMap[service]
+		other.rLock.RUnlock()
+
 		sPool.rLock.Lock()
 		var sRev = sPool.version
 		var otherRev uint64
-
-		var sMap = other.sMap[service]
 		if sMap != nil {
 			otherRev = sMap.version
 			if sRev == otherRev {
@@ -164,46 +167,73 @@ func (self *Registry) Sync(other *Registry, onAdd, onDelete func(generic.T, gene
 			}
 		}
 		sPool.rLock.Unlock()
-	}
 
-	for service, sPool := range self.sMap {
-		sPool.rLock.RLock()
-		if _, ch := inSync[service]; !ch {
-			for s := range sPool.srvMap {
-				var sMap = other.sMap[service]
-				if sMap == nil {
-					deleted = append(deleted, Pair{service, s})
-					continue
-				}
-				sMap.rLock.RLock()
-				if _, found := sMap.srvMap[s]; !found {
-					deleted = append(deleted, Pair{service, s})
-				}
-				sMap.rLock.RUnlock()
-			}
-		}
-		sPool.rLock.RUnlock()
+		self.rLock.RLock()
 	}
-	for service, sPool := range other.sMap {
-		sPool.rLock.RLock()
+	self.rLock.RUnlock()
+
+	self.rLock.RLock()
+	for service, sPool := range self.sMap {
+		self.rLock.RUnlock()
+
 		if _, ch := inSync[service]; !ch {
+			sPool.rLock.RLock()
 			for s := range sPool.srvMap {
+				sPool.rLock.RUnlock()
+
+				other.rLock.RLock()
+				var sMap = other.sMap[service]
+				other.rLock.RUnlock()
+				if sMap == nil {
+					deleted = append(deleted, Pair{service, s})
+				} else {
+					sMap.rLock.RLock()
+					if _, found := sMap.srvMap[s]; !found {
+						deleted = append(deleted, Pair{service, s})
+					}
+					sMap.rLock.RUnlock()
+				}
+
+				sPool.rLock.RLock()
+			}
+			sPool.rLock.RUnlock()
+		}
+
+		self.rLock.RLock()
+	}
+	self.rLock.RUnlock()
+
+	other.rLock.RLock()
+	for service, sPool := range other.sMap {
+		other.rLock.RUnlock()
+
+		if _, ch := inSync[service]; !ch {
+			sPool.rLock.RLock()
+			for s := range sPool.srvMap {
+				sPool.rLock.RUnlock()
+
+				self.rLock.RLock()
 				var sMap = self.sMap[service]
+				self.rLock.RUnlock()
 				if sMap == nil {
 					added = append(added, Pair{service, s})
-					continue
+				} else {
+					sMap.rLock.RLock()
+					if _, found := sMap.srvMap[s]; !found {
+						added = append(added, Pair{service, s})
+					}
+					sMap.rLock.RUnlock()
 				}
-				sMap.rLock.RLock()
-				if _, found := sMap.srvMap[s]; !found {
-					added = append(added, Pair{service, s})
-				}
-				sMap.rLock.RUnlock()
+
+				sPool.rLock.RLock()
 			}
+			sPool.rLock.RUnlock()
 		}
-		sPool.rLock.RUnlock()
+
+		other.rLock.RLock()
 	}
 	other.rLock.RUnlock()
-	self.rLock.RUnlock()
+
 
 	for _, add := range added {
 		self.Push(add.K, add.V)
