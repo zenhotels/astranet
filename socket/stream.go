@@ -73,9 +73,9 @@ func (self *stream) recv(op protocol.Op, _ transport.Transport) {
 		self.status = self.status | stSyn
 		self.remote = op.Local
 		self.rport = op.LPort
-		self.subscribe(opSynAck, opData, opErr, opFin1, OpFin2, opData, opWndSize, opRewind)
 		self.state.Broadcast()
 		self.sLock.Unlock()
+		self.subscribe(opSynAck, opData, opErr, opFin1, OpFin2, opData, opWndSize, opRewind)
 		self.mpx.Queue(self.Op(opAck, nil))
 		return
 	case opAck:

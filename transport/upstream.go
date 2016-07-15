@@ -2,16 +2,17 @@ package transport
 
 import (
 	"bufio"
+	"bytes"
 	"container/list"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
+	"runtime/pprof"
 	"sync"
 	"time"
-
-	"log"
 
 	"github.com/zenhotels/astranet/glog"
 	"github.com/zenhotels/astranet/protocol"
@@ -171,7 +172,7 @@ func (self *transport) SendTimeout(op protocol.Op, t time.Duration) (err error) 
 	case op.Cmd.Priority():
 		self.wSysBuf = append(self.wSysBuf, op.Encode())
 	default:
-	loopDone:
+		loopDone:
 		for {
 			switch {
 			case self.wClosed:
@@ -332,13 +333,21 @@ func (self *transport) IOLoopReader() error {
 	opLatencyCheck = func() {
 		opLock.RLock()
 		if opDone.Before(opStart) && time.Now().Sub(opStart) > 10*time.Second {
+			var goroutines = pprof.Lookup("goroutine")
+			var buf = bytes.NewBuffer(nil)
+			goroutines.WriteTo(buf, 1)
 			self.Log.Panic(
 				"FREEZE while reading from UPSTREAM", opHeader, self.id, time.Now().Sub(opStart),
+				buf,
 			)
 		}
 		opLock.RUnlock()
+		if self.IsClosed() {
+			return
+		}
 		time.AfterFunc(time.Second, opLatencyCheck)
 	}
+
 	opLatencyCheck()
 	for {
 		opLock.Lock()
@@ -406,6 +415,10 @@ func (self *transport) IOLoopReader() error {
 		}
 		cb(job, self)
 	}
+
+	opLock.Lock()
+	opDone = time.Now()
+	opLock.Unlock()
 	return nil
 }
 
