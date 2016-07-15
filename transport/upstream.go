@@ -27,6 +27,7 @@ type transport struct {
 	keepalive time.Duration
 	reader    *bufio.Reader
 	writer    *bufio.Writer
+	closer    io.Closer
 
 	wdeadline   time.Time
 	tasker      *time.Ticker
@@ -281,7 +282,11 @@ func (self *transport) Close() {
 	self.wClosed = true
 	self.wdeadline = time.Now().Add(time.Second)
 	self.wNew.Broadcast()
+	var closer = self.closer
 	self.wLock.Unlock()
+	if closer != nil {
+		go closer.Close()
+	}
 }
 
 func (self *transport) Drain() {
@@ -295,7 +300,11 @@ func (self *transport) closeForced() {
 	self.wClosed = true
 	self.wdeadline = time.Now()
 	self.wNew.Broadcast()
+	var closer = self.closer
 	self.wLock.Unlock()
+	if closer != nil {
+		go closer.Close()
+	}
 }
 
 func (self *transport) IsClosed() bool {
@@ -414,6 +423,7 @@ func Upstream(rw io.ReadWriter, l glog.Logger, hndl Callback, keepalive time.Dur
 	tr.writer = bufio.NewWriterSize(rw, 64*1024)
 	tr.keepalive = keepalive
 	tr.Log = l
+	tr.closer, _ = rw.(io.Closer)
 
 	if c, ok := rw.(net.Conn); ok {
 		tr.rAddr = c.RemoteAddr()
