@@ -206,6 +206,11 @@ func (mpx *multiplexer) DialTimeout(network, hp string, t time.Duration) (net.Co
 		algo = service.HashRingSelector{VBucket: int(crc32.ChecksumIEEE([]byte(network)))}
 	}
 
+	if network == "vport2registry" {
+		algo = service.HashRingSelector{VBucket: int(crc32.ChecksumIEEE([]byte(portStr)))}
+		hp = hostStr
+	}
+
 	var host, hpErr = addr.Host2Uint(hostStr)
 	if hpErr != nil {
 		var srv, srvFound = mpx.services.DiscoverTimeout(algo, hp+mpx.cfg.Env, t)

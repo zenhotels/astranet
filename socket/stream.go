@@ -28,14 +28,13 @@ type stream struct {
 	canSend uint32
 	status  ConnState
 	state   sync.Cond
-	sLock   sync.Mutex
+	sLock   sync.RWMutex
 
 	rBuf    []skykiss.BytesPackage
 	wBuf    uint32
 	wndSize uint32
 
 	connHndl transport.Handler
-	opLock   sync.RWMutex
 
 	mpx       transport.Transport
 	rDeadLine time.Time
@@ -46,7 +45,7 @@ func (self *stream) Join(op ConnState) (state ConnState) {
 	var match = func(op ConnState) bool {
 		return (self.status & op) == op
 	}
-	self.state.L.Lock()
+	self.sLock.Lock()
 state_loop:
 	for {
 		switch {
@@ -62,7 +61,7 @@ state_loop:
 		}
 	}
 	state = self.status
-	self.state.L.Unlock()
+	self.sLock.Unlock()
 	return
 }
 
@@ -72,15 +71,19 @@ func (self *stream) recv(op protocol.Op, _ transport.Transport) {
 	switch op.Cmd {
 	case opSyn:
 		self.status = self.status | stSyn
-		self.opLock.Lock()
 		self.remote = op.Local
 		self.rport = op.LPort
-		self.opLock.Unlock()
 		self.subscribe(opSynAck, opData, opErr, opFin1, OpFin2, opData, opWndSize, opRewind)
+		self.state.Broadcast()
+		self.sLock.Unlock()
 		self.mpx.Queue(self.Op(opAck, nil))
+		return
 	case opAck:
 		self.status = self.status | stAck
+		self.state.Broadcast()
+		self.sLock.Unlock()
 		self.mpx.Queue(self.Op(opSynAck, nil))
+		return
 	case opSynAck:
 		self.status = self.status | stSynAck
 	case opFin1:
@@ -140,8 +143,8 @@ stateLoop:
 			self.wBuf += uint32(len(data))
 			n += len(data)
 			b = b[len(data):]
-			var op = self.Op(opData, data)
 			self.sLock.Unlock()
+			var op = self.Op(opData, data)
 			self.mpx.Send(op)
 			self.sLock.Lock()
 		case self.status&stFin1 > 0:
@@ -192,12 +195,12 @@ stateLoop:
 			self.state.Wait()
 		}
 	}
-	self.sLock.Unlock()
 	self.state.Broadcast()
+	self.sLock.Unlock()
 	if n > 0 {
 		var rwnd [4]byte
 		binary.BigEndian.PutUint32(rwnd[:], uint32(n))
-		self.mpx.Send(self.Op(opRewind, rwnd[:]))
+		self.mpx.Queue(self.Op(opRewind, rwnd[:]))
 	}
 	return
 }
@@ -209,7 +212,7 @@ func (self *stream) Close() error {
 		self.connHndl.Close()
 	})
 	self.recv(self.Op(opFin1, nil), nil)
-	self.mpx.Send(self.Op(OpFin2, nil))
+	self.mpx.Queue(self.Op(OpFin2, nil))
 	self.state.Broadcast()
 	return nil
 }
@@ -241,7 +244,7 @@ func (self *stream) RemoteAddr() net.Addr {
 }
 
 func (self *stream) Op(cmd protocol.Command, body []byte) protocol.Op {
-	self.opLock.RLock()
+	self.sLock.Lock()
 	var op = protocol.Op{
 		Cmd:    cmd,
 		Local:  self.local,
@@ -250,7 +253,7 @@ func (self *stream) Op(cmd protocol.Command, body []byte) protocol.Op {
 		RPort:  self.rport,
 		Data:   skykiss.BytesPackage{Bytes: body},
 	}
-	self.opLock.RUnlock()
+	self.sLock.Unlock()
 	return op
 }
 
