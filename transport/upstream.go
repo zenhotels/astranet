@@ -172,7 +172,7 @@ func (self *transport) SendTimeout(op protocol.Op, t time.Duration) (err error) 
 	case op.Cmd.Priority():
 		self.wSysBuf = append(self.wSysBuf, op.Encode())
 	default:
-	loopDone:
+		loopDone:
 		for {
 			switch {
 			case self.wClosed:
@@ -347,7 +347,7 @@ func (self *transport) IOLoopReader() error {
 						opHeader, self.id, time.Now().Sub(opStart), buf,
 					)
 				})
-
+			go self.closeForced()
 		}
 		opLock.RUnlock()
 		if self.IsClosed() {
