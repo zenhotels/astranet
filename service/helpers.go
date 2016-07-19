@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	"time"
+
 	"github.com/zenhotels/btree-2d/common"
 	"stathat.com/c/consistent"
 )
@@ -68,7 +70,8 @@ func (self *U) Less(other common.Comparable) bool {
 
 type Iterator struct {
 	*Registry
-	last uint64
+	last  uint64
+	updAt time.Time
 }
 
 func (self Iterator) Next() Iterator {
@@ -80,5 +83,10 @@ func (self Iterator) Next() Iterator {
 		self.rCond.Wait()
 	}
 	self.rLock.Unlock()
-	return Iterator{self.Registry, last}
+	var now = time.Now()
+	var timeSpent = now.Sub(self.updAt)
+	if timeSpent < time.Millisecond*50 {
+		time.Sleep(time.Millisecond*50 - timeSpent)
+	}
+	return Iterator{self.Registry, last, time.Now()}
 }

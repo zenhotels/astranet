@@ -106,7 +106,7 @@ func (self *Registry) Sync(other *Registry, onAdd, onDelete func(uint64, RouteIn
 
 func (self *Registry) Iter() Iterator {
 	self.init()
-	return Iterator{self, 0}
+	return Iterator{self, 0, time.Now()}
 }
 
 func (self *Registry) Close() {

@@ -107,7 +107,7 @@ func (self *Registry) Sync(other *Registry, onAdd, onDelete func(generic.T, gene
 
 func (self *Registry) Iter() Iterator {
 	self.init()
-	return Iterator{self, 0}
+	return Iterator{self, 0, time.Now()}
 }
 
 func (self *Registry) Close() {
