@@ -3,9 +3,11 @@ package route
 import (
 	"math/rand"
 
-	"github.com/zenhotels/astranet/transport"
 	"fmt"
+	"reflect"
+
 	"github.com/zenhotels/astranet/addr"
+	"github.com/zenhotels/astranet/transport"
 )
 
 type RouteInfo struct {
@@ -46,6 +48,23 @@ func (RndDistSelector) Select(pool []RouteInfo) int {
 		}
 	}
 	return 0
+}
+
+func init() {
+	TCompare = func(k1, k2 uint64) bool {
+		return k1 < k2
+	}
+	UCompare = func(k1, k2 RouteInfo) bool {
+		if k1.Host == k2.Host {
+			if k1.Distance == k2.Distance {
+				var k1V = reflect.ValueOf(k1.Upstream).Elem()
+				var k2V = reflect.ValueOf(k2.Upstream).Elem()
+				return k1V.UnsafeAddr() < k2V.UnsafeAddr()
+			}
+			return k1.Distance < k2.Distance
+		}
+		return k1.Host < k2.Host
+	}
 }
 
 //go:generate gengen github.com/zenhotels/astranet/registry uint64 RouteInfo
