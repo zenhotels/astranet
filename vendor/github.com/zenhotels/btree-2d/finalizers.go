@@ -58,6 +58,9 @@ func (w *withFinalizers) Less(w2 common.Comparable) bool {
 }
 
 func (w *withFinalizers) Finalize() {
+	w.onceNewList.Do(func() {
+		w.list = make([]func(), MaxFinalizers)
+	})
 	offset := atomic.SwapInt64(&w.offset, 100)
 	if offset >= 100 {
 		return

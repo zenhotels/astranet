@@ -19,8 +19,8 @@
 			"importpath": "github.com/zenhotels/btree-2d",
 			"repository": "https://github.com/zenhotels/btree-2d",
 			"vcs": "git",
-			"revision": "1b2108f60c86cde7b3d73dbdde20c3aa165412b8",
-			"branch": "master",
+			"revision": "585d971462a62d216cde04aca1dbb82aacc014a2",
+			"branch": "f/fix_pack",
 			"notests": true
 		},
 		{
