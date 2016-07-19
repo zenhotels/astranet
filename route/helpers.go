@@ -73,12 +73,12 @@ type Iterator struct {
 
 func (self Iterator) Next() Iterator {
 	var last = atomic.LoadUint64(&self.rRev)
-	self.rLock.RLock()
+	self.rLock.Lock()
 	var swapped = atomic.CompareAndSwapUint64(&self.rRev, self.last, self.last)
 	var closed = atomic.LoadUint64(&self.closed)
-	if swapped && closed > 0 {
+	if swapped && closed == 0 {
 		self.rCond.Wait()
 	}
-	self.rLock.RUnlock()
+	self.rLock.Unlock()
 	return Iterator{self.Registry, last}
 }

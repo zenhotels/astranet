@@ -39,7 +39,7 @@ func (self *Registry) Push(id generic.T, srv generic.U, action ...func()) {
 		return
 	}
 	var u = btree2d.NewFinalizable(&U{srv})
-	for _, act := range action  {
+	for _, act := range action {
 		u.AddFinalizer(act)
 	}
 	self.sMap.Put(&T{id}, u)
