@@ -8,7 +8,6 @@ import (
 
 	"time"
 
-	"github.com/zenhotels/btree-2d/common"
 	"stathat.com/c/consistent"
 )
 
@@ -48,25 +47,7 @@ func (hrs HashRingSelector) Select(pool []ServiceInfo) (idx int) {
 	return psMap[idKey]
 }
 
-type T struct {
-	T string
-}
-
-var TCompare func(k1, k2 string) bool
-
-func (self *T) Less(other common.Comparable) bool {
-	return TCompare(self.T, other.(*T).T)
-}
-
-type U struct {
-	U ServiceInfo
-}
-
-var UCompare func(k1, k2 ServiceInfo) bool
-
-func (self *U) Less(other common.Comparable) bool {
-	return UCompare(self.U, other.(*U).U)
-}
+var BTreeNew func() BTree2D
 
 type Iterator struct {
 	*Registry
