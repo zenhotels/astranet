@@ -1,11 +1,20 @@
 package service
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/zenhotels/astranet/addr"
+)
 
 type ServiceInfo struct {
 	Service string
 	Host    uint64
 	Port    uint32
+}
+
+func (r ServiceInfo) String() string {
+	return fmt.Sprintf("{%s<-%s:%d}", r.Service, addr.Uint2Host(r.Host), r.Port)
 }
 
 func init() {
