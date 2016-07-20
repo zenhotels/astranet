@@ -32,6 +32,9 @@ type HashRingSelector struct {
 }
 
 func (hrs HashRingSelector) Select(pool []RouteInfo) (idx int) {
+	if hrs.VBucket == 0 {
+		return int(rand.Int31n(int32(len(pool))))
+	}
 	var hr = consistent.New()
 	hr.NumberOfReplicas = 1024
 	var psMap = make(map[string]int, len(pool))
