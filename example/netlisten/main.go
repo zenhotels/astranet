@@ -6,24 +6,27 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/zenhotels/astranet"
+	"github.com/zenhotels/astranet/service"
 )
 
 var astraNet = astranet.New().Client()
 
 func main() {
 	go http.ListenAndServe("localhost:6060", nil)
-	var routes = astraNet.RoutesMap()
+	var services = astraNet.ServiceMap()
 
-	var rS astranet.RegistryStorage
-	var rN = routes.Iter()
-	for ; ; rN.Next() {
-		rS.Sync(routes,
-			func(s astranet.ServiceId) {
-				fmt.Println("+++", s)
-			},
-			func(s astranet.ServiceId) {
-				fmt.Println("---", s)
-			},
-		)
-	}
+	func() {
+		var rS service.Registry
+		var rN = services.Iter()
+		for ; ; rN.Next() {
+			rS.Sync(services,
+				func(_ string, s service.ServiceInfo) {
+					fmt.Println("+++", s)
+				},
+				func(_ string, s service.ServiceInfo) {
+					fmt.Println("---", s)
+				},
+			)
+		}
+	}()
 }
