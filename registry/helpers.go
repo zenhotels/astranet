@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/joeshaw/gengen/generic"
-	"github.com/zenhotels/btree-2d/common"
 	"stathat.com/c/consistent"
 )
 
@@ -49,25 +48,7 @@ func (hrs HashRingSelector) Select(pool []generic.U) (idx int) {
 	return psMap[idKey]
 }
 
-type T struct {
-	T generic.T
-}
-
-var TCompare func(k1, k2 generic.T) bool
-
-func (self *T) Less(other common.Comparable) bool {
-	return TCompare(self.T, other.(*T).T)
-}
-
-type U struct {
-	U generic.U
-}
-
-var UCompare func(k1, k2 generic.U) bool
-
-func (self *U) Less(other common.Comparable) bool {
-	return UCompare(self.U, other.(*U).U)
-}
+var BTreeNew func() BTree2D
 
 type Iterator struct {
 	*Registry

@@ -7,12 +7,10 @@ import (
 
 	"github.com/joeshaw/gengen/generic"
 	"github.com/zenhotels/astranet/skykiss"
-	"github.com/zenhotels/btree-2d"
-	"github.com/zenhotels/btree-2d/common"
 )
 
 type Registry struct {
-	sMap    btree2d.BTree2D
+	sMap    BTree2D
 	rLock   sync.RWMutex
 	rCond   sync.Cond
 	rRev    uint64
@@ -22,7 +20,7 @@ type Registry struct {
 
 func (self *Registry) init() {
 	self.initCtl.Do(func() {
-		self.sMap = btree2d.NewBTree2D()
+		self.sMap = BTreeNew()
 		self.rCond.L = &self.rLock
 	})
 }
@@ -38,17 +36,13 @@ func (self *Registry) Push(id generic.T, srv generic.U, action ...func()) {
 	if closed > 0 {
 		return
 	}
-	var u = btree2d.NewFinalizable(&U{srv})
-	for _, act := range action {
-		u.AddFinalizer(act)
-	}
-	self.sMap.Put(&T{id}, u)
+	self.sMap.Put(id, srv, action...)
 	self.touch()
 }
 
 func (self *Registry) Pop(id generic.T, srv generic.U) {
 	self.init()
-	self.sMap.Delete(&T{id}, &U{srv})
+	self.sMap.Delete(id, srv)
 	self.touch()
 }
 
@@ -61,8 +55,8 @@ func (self *Registry) DiscoverTimeout(r Selector, sname generic.T, wait time.Dur
 	for {
 
 		var tPool = make([]generic.U, 0)
-		self.sMap.ForEach2(&T{sname}, func(k2 common.Comparable) bool {
-			tPool = append(tPool, k2.(common.FinalizableComparable).Value().(*U).U)
+		self.sMap.ForEach2(sname, func(k2 generic.U) bool {
+			tPool = append(tPool, k2)
 			return false
 		})
 
@@ -93,13 +87,13 @@ func (self *Registry) Sync(other *Registry, onAdd, onDelete func(generic.T, gene
 	other.init()
 	self.sMap.Sync(
 		other.sMap,
-		func(k1, k2 common.Comparable) {
+		func(k1 generic.T, k2 generic.U) {
 			if onAdd != nil {
-				onAdd(k1.(*T).T, k2.(common.FinalizableComparable).Value().(*U).U)
+				onAdd(k1, k2)
 			}
-		}, func(k1, k2 common.Comparable) {
+		}, func(k1 generic.T, k2 generic.U) {
 			if onDelete != nil {
-				onDelete(k1.(*T).T, k2.(common.FinalizableComparable).Value().(*U).U)
+				onDelete(k1, k2)
 			}
 		},
 	)
