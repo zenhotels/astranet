@@ -543,22 +543,29 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 			close(handshakeDone)
 			caps.ImprovedOpService = true
 		default:
-			mpxHndl(job, upstream)
+			if caps.ImprovedOpService {
+				mpxHndl(job, upstream)
+			}
 		}
 	}
 
 	var remote = transport.Upstream(conn, mpx.Log, opCb, keepalive)
 	remote.Queue(protocol.Op{Cmd: opHandshake, Local: mpx.local})
 
-	var w4handshake = time.NewTimer(time.Second)
+	var w4handshake = time.NewTimer(time.Second * 10)
 	select {
 	case <-handshakeDone:
 	case <-w4handshake.C:
 		mpx.Log.VLog(10, func(l *log.Logger) {
 			l.Println("Legacy client", remote)
 		})
+		remote.Close()
 	}
 	w4handshake.Stop()
+	if !caps.ImprovedOpService {
+		wg.Done()
+		return remote, &wg
+	}
 
 	go mpx.discoverLoop(remote, caps)
 	go mpx.discoverServiceLoop(remote, caps)
