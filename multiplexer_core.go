@@ -769,7 +769,7 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 			}
 			if !joinMeMap[hp] {
 				joinMeMap[hp] = true
-				mpx.broadcast(job)
+				go mpx.broadcast(job)
 			}
 
 		case opDiscover:
