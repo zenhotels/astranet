@@ -43,4 +43,5 @@ var (
 	opNoServiсe = protocol.RegisterFrame(199, "OP_NO_SERVICE", false)
 	opJoinMe    = protocol.RegisterFrame(201, "OP_JOIN_ME", false)
 	opRHost     = protocol.RegisterFrame(202, "OP_RHOST", false)
+	opHandshake = protocol.RegisterFrame(203, "OP_HANDSHAKE", false)
 )

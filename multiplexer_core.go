@@ -44,6 +44,11 @@ type routeId struct {
 	dst uint64
 }
 
+type clientCaps struct {
+	ImprovedOpService bool
+	Distance          int
+}
+
 type multiplexer struct {
 	initCtl     sync.Once
 	initDone    bool
@@ -296,7 +301,7 @@ func (mpx *multiplexer) bind(network string, port uint32, s string) (net.Listene
 	return lr, nil
 }
 
-func (mpx *multiplexer) discoverLoop(upstream transport.Transport, distance int) {
+func (mpx *multiplexer) discoverLoop(upstream transport.Transport, caps clientCaps) {
 	var discoveryMsg = func(id uint64, distance int) protocol.Op {
 		var op = protocol.Op{
 			Cmd:   opDiscover,
@@ -314,11 +319,16 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, distance int)
 		return op
 	}
 	upstream.SendTimeout(
-		discoveryMsg(mpx.local, distance),
+		discoveryMsg(mpx.local, caps.Distance),
 		0,
 	)
 	if mpx.cfg.NoServer {
 		return
+	}
+
+	var maxDistance = mpx.MaxDistance
+	if caps.ImprovedOpService {
+		maxDistance = 2
 	}
 
 	var forEach route.Registry
@@ -326,18 +336,18 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, distance int)
 	for !upstream.IsClosed() {
 		iter = iter.Next()
 		forEach.Sync(&mpx.routes, func(_ uint64, s route.RouteInfo) {
-			if s.Distance+distance < mpx.MaxDistance {
-				upstream.Queue(discoveryMsg(s.Host, s.Distance+distance))
+			if s.Distance+caps.Distance <= maxDistance {
+				upstream.Queue(discoveryMsg(s.Host, s.Distance+caps.Distance))
 			}
 		}, func(_ uint64, s route.RouteInfo) {
-			if s.Distance+distance < mpx.MaxDistance {
-				upstream.Queue(forgetMsg(s.Host, s.Distance+distance))
+			if s.Distance+caps.Distance <= maxDistance {
+				upstream.Queue(forgetMsg(s.Host, s.Distance+caps.Distance))
 			}
 		})
 	}
 }
 
-func (mpx *multiplexer) discoverServiceLoop(upstream transport.Transport, distance int) {
+func (mpx *multiplexer) discoverServiceLoop(upstream transport.Transport, caps clientCaps) {
 	var serviceMsg = func(id uint64, port uint32, name string) protocol.Op {
 		var op = protocol.Op{
 			Cmd:   opService,
@@ -366,9 +376,13 @@ func (mpx *multiplexer) discoverServiceLoop(upstream transport.Transport, distan
 	for !upstream.IsClosed() {
 		iter = iter.Next()
 		forEach.Sync(&mpx.services, func(_ string, s service.ServiceInfo) {
-			upstream.Queue(serviceMsg(s.Host, s.Port, s.Service))
+			if caps.ImprovedOpService || s.Host == mpx.local {
+				upstream.Queue(serviceMsg(s.Host, s.Port, s.Service))
+			}
 		}, func(_ string, s service.ServiceInfo) {
-			upstream.Queue(noServiceMsg(s.Host, s.Port, s.Service))
+			if caps.ImprovedOpService || s.Host == mpx.local {
+				upstream.Queue(noServiceMsg(s.Host, s.Port, s.Service))
+			}
 		})
 	}
 }
@@ -435,7 +449,7 @@ func (mpx *multiplexer) fwdGc() {
 	}
 }
 
-func (mpx *multiplexer) p2pNotifyLoop(upstream transport.Transport, distance int) {
+func (mpx *multiplexer) p2pNotifyLoop(upstream transport.Transport, caps clientCaps) {
 	var welcomeMsg = func(id uint64, name string) protocol.Op {
 		var op = protocol.Op{
 			Cmd:   opJoinMe,
@@ -444,7 +458,7 @@ func (mpx *multiplexer) p2pNotifyLoop(upstream transport.Transport, distance int
 		op.Data.Bytes = []byte(name)
 		return op
 	}
-	if distance == 1 && upstream.RAddr() != nil {
+	if caps.Distance == 1 && upstream.RAddr() != nil {
 		var op = protocol.Op{
 			Cmd:   opRHost,
 			Local: mpx.local,
@@ -517,11 +531,38 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 		keepalive = time.Minute
 	}
 
-	var remote = transport.Upstream(conn, mpx.Log, mpx.EventHandler(&wg), keepalive)
+	var caps = clientCaps{Distance: distance}
+	var mpxHndl = mpx.EventHandler(&wg)
+	var handshakeDone = make(chan struct{}, 1)
+	var opCb = func(job protocol.Op, upstream transport.Transport) {
+		switch job.Cmd {
+		case opHandshake:
+			mpx.Log.VLog(10, func(l *log.Logger) {
+				l.Println("Handshake with", addr.Uint2Host(job.Local))
+			})
+			close(handshakeDone)
+			caps.ImprovedOpService = true
+		default:
+			mpxHndl(job, upstream)
+		}
+	}
 
-	go mpx.discoverLoop(remote, distance)
-	go mpx.discoverServiceLoop(remote, distance)
-	go mpx.p2pNotifyLoop(remote, distance)
+	var remote = transport.Upstream(conn, mpx.Log, opCb, keepalive)
+	remote.Queue(protocol.Op{Cmd: opHandshake, Local: mpx.local})
+
+	var w4handshake = time.NewTimer(time.Second)
+	select {
+	case <-handshakeDone:
+	case <-w4handshake.C:
+		mpx.Log.VLog(10, func(l *log.Logger) {
+			l.Println("Legacy client", remote)
+		})
+	}
+	w4handshake.Stop()
+
+	go mpx.discoverLoop(remote, caps)
+	go mpx.discoverServiceLoop(remote, caps)
+	go mpx.p2pNotifyLoop(remote, caps)
 
 	go func() {
 		remote.Join()
