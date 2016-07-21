@@ -326,11 +326,11 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, distance int)
 	for !upstream.IsClosed() {
 		iter = iter.Next()
 		forEach.Sync(&mpx.routes, func(_ uint64, s route.RouteInfo) {
-			if s.Distance+distance <= mpx.MaxDistance {
+			if s.Distance+distance < mpx.MaxDistance {
 				upstream.Queue(discoveryMsg(s.Host, s.Distance+distance))
 			}
 		}, func(_ uint64, s route.RouteInfo) {
-			if s.Distance+distance <= mpx.MaxDistance {
+			if s.Distance+distance < mpx.MaxDistance {
 				upstream.Queue(forgetMsg(s.Host, s.Distance+distance))
 			}
 		})
