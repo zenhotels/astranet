@@ -534,7 +534,6 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 
 func (mpx *multiplexer) Attach(conn io.ReadWriter) {
 	mpx.init()
-	mpx.Log.VLog(40, func(l *log.Logger) { l.Println("Attach") })
 	mpx.attachDistance(conn, 1)
 }
 
@@ -584,7 +583,6 @@ func (mpx *multiplexer) localHostDiscover(l net.Addr) {
 
 func (mpx *multiplexer) Join(network, address string) error {
 	mpx.init()
-	mpx.Log.VLog(40, func(l *log.Logger) { l.Println("Join") })
 	mpx.bLock.Lock()
 	var _, joined = mpx.joined[network+address]
 	mpx.bLock.Unlock()
