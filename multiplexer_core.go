@@ -598,7 +598,9 @@ func (mpx *multiplexer) Join(network, address string) error {
 	mpx.bLock.Unlock()
 
 	if joined {
-		l.Close()
+		if l != nil {
+			l.Close()
+		}
 		return nil
 	}
 
