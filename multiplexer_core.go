@@ -72,6 +72,9 @@ type multiplexer struct {
 	fwdCache map[routeId]transport.Transport
 	fwdLock  sync.RWMutex
 
+	serviceFeeds map[service.ServiceInfo]map[transport.Transport]bool
+	serviceLock  sync.Mutex
+
 	httpc *http.Client
 
 	routes     route.Registry
@@ -112,9 +115,9 @@ func (mpx *multiplexer) init() {
 			Timeout:   10 * time.Second,
 		}
 		mpx.fwdCache = make(map[routeId]transport.Transport)
+		mpx.serviceFeeds = make(map[service.ServiceInfo]map[transport.Transport]bool)
 
 		go mpx.iohandler()
-		go mpx.farAwayLoop()
 		go mpx.routesWatcher()
 		go mpx.serviceWatcher()
 		go mpx.fwdGc()
@@ -323,11 +326,11 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, distance int)
 	for !upstream.IsClosed() {
 		iter = iter.Next()
 		forEach.Sync(&mpx.routes, func(_ uint64, s route.RouteInfo) {
-			if s.Distance+distance <= mpx.MaxDistance {
+			if s.Distance+distance < mpx.MaxDistance {
 				upstream.Queue(discoveryMsg(s.Host, s.Distance+distance))
 			}
 		}, func(_ uint64, s route.RouteInfo) {
-			if s.Distance+distance <= mpx.MaxDistance {
+			if s.Distance+distance < mpx.MaxDistance {
 				upstream.Queue(forgetMsg(s.Host, s.Distance+distance))
 			}
 		})
@@ -346,7 +349,7 @@ func (mpx *multiplexer) discoverServiceLoop(upstream transport.Transport, distan
 	}
 	var noServiceMsg = func(id uint64, port uint32, name string) protocol.Op {
 		var op = protocol.Op{
-			Cmd:   opNoServcie,
+			Cmd:   opNoServiсe,
 			Local: id,
 			LPort: port,
 		}
@@ -363,14 +366,8 @@ func (mpx *multiplexer) discoverServiceLoop(upstream transport.Transport, distan
 	for !upstream.IsClosed() {
 		iter = iter.Next()
 		forEach.Sync(&mpx.services, func(_ string, s service.ServiceInfo) {
-			if s.Host != mpx.local {
-				return
-			}
 			upstream.Queue(serviceMsg(s.Host, s.Port, s.Service))
 		}, func(_ string, s service.ServiceInfo) {
-			if s.Host != mpx.local {
-				return
-			}
 			upstream.Queue(noServiceMsg(s.Host, s.Port, s.Service))
 		})
 	}
@@ -537,7 +534,6 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 
 func (mpx *multiplexer) Attach(conn io.ReadWriter) {
 	mpx.init()
-	mpx.Log.VLog(40, func(l *log.Logger) { l.Println("Attach") })
 	mpx.attachDistance(conn, 1)
 }
 
@@ -587,7 +583,6 @@ func (mpx *multiplexer) localHostDiscover(l net.Addr) {
 
 func (mpx *multiplexer) Join(network, address string) error {
 	mpx.init()
-	mpx.Log.VLog(40, func(l *log.Logger) { l.Println("Join") })
 	mpx.bLock.Lock()
 	var _, joined = mpx.joined[network+address]
 	mpx.bLock.Unlock()
@@ -598,8 +593,14 @@ func (mpx *multiplexer) Join(network, address string) error {
 	var l, lErr = net.Dial(network, address)
 
 	mpx.bLock.Lock()
+	_, joined = mpx.joined[network+address]
 	mpx.joined[network+address] = true
 	mpx.bLock.Unlock()
+
+	if joined {
+		l.Close()
+		return nil
+	}
 
 	var retry = backoff.NewExponentialBackOff()
 	retry.MaxElapsedTime = time.Hour * 4
@@ -656,170 +657,119 @@ func (mpx *multiplexer) iohandler() {
 	}()
 }
 
-func (mpx *multiplexer) farAwayLoop() {
-	var vHostDial = map[uint64]chan bool{}
-	var vHostLoc = map[uint64]map[transport.Transport]bool{}
-	var vHostDialLock sync.Mutex
-
-	mpx.dLock.Lock()
-	for {
-		var cleanup = []discoverLoc{}
-		var upstreamCleanup = map[transport.Transport]bool{}
-		for loc := range mpx.discovered {
-			if loc.upstream.IsClosed() {
-				cleanup = append(cleanup, loc)
-				upstreamCleanup[loc.upstream] = true
-				continue
-			}
-			if vHostLoc[loc.Host] == nil {
-				vHostLoc[loc.Host] = map[transport.Transport]bool{}
-			}
-			vHostLoc[loc.Host][loc.upstream] = true
-		}
-		for _, cI := range cleanup {
-			delete(mpx.discovered, cI)
-		}
-
-		var vHostCleanup = []uint64{}
-		vHostDialLock.Lock()
-		for vHost, vLoc := range vHostLoc {
-			for upstream := range upstreamCleanup {
-				delete(vLoc, upstream)
-			}
-			if len(vLoc) == 0 {
-				vHostCleanup = append(vHostCleanup, vHost)
-				continue
-			}
-			if vHostDial[vHost] == nil {
-				vHostDial[vHost] = make(chan bool, 1)
-			}
-			for upstream := range vLoc {
-				select {
-				case vHostDial[vHost] <- true:
-					go func(vHost uint64, upstream transport.Transport) {
-						var deadline = time.Now().Add(time.Second)
-						var route = mpx.findRouteTimeout(vHost, 1, deadline.Sub(time.Now()))
-						if route != nil {
-							mpx.Log.VLog(20, func(l *log.Logger) {
-								l.Println(
-									"No more faraway connections allowed for",
-									addr.Uint2Host(vHost),
-								)
-							})
-							return
-						}
-						var lPort = atomic.AddUint32(&mpx.lPort, 1)
-						var remoteConn = socket.NewClientSocket("", mpx.local, lPort, upstream)
-						upstream.SendTimeout(protocol.Op{Cmd: opNew,
-							Local:  mpx.local,
-							Remote: vHost,
-							LPort:  lPort,
-							RPort:  0,
-						}, deadline.Sub(time.Now()))
-
-						var remote, wg = mpx.attachDistanceNonBlock(remoteConn, 3)
-						go func() {
-							for !remote.IsClosed() {
-								var route = mpx.findRouteTimeout(vHost, 1, time.Second)
-								if route != nil {
-									remote.Drain()
-								}
-								time.Sleep(time.Minute)
-							}
-						}()
-						wg.Wait()
-						remote.Close()
-						mpx.dNew.Broadcast()
-						vHostDialLock.Lock()
-						<-vHostDial[vHost]
-						vHostDialLock.Unlock()
-					}(vHost, upstream)
-				default:
-				}
-				break
-			}
-		}
-
-		for _, vH := range vHostCleanup {
-			delete(vHostLoc, vH)
-		}
-		vHostDialLock.Unlock()
-
-		mpx.dNew.Wait()
-	}
-	mpx.dLock.Unlock()
+func (mpx *multiplexer) broadcast(op protocol.Op) {
+	var r route.Registry
+	r.Sync(&mpx.routes, func(hId uint64, route route.RouteInfo) {
+		route.Upstream.Send(op)
+	}, nil)
 }
 
-func (mpx *multiplexer) discover(upstream transport.Transport, host uint64, distance int) {
-	if mpx.cfg.NoClient {
+func (mpx *multiplexer) fwd(job protocol.Op, upstream transport.Transport) {
+	// Forward chain here
+	var rId = routeId{job.Local, job.Remote}
+	var rrId = routeId{job.Remote, job.Local}
+	// Fastpath
+	mpx.fwdLock.RLock()
+	var cachedRoute = mpx.fwdCache[rId]
+	var rCachedRoute = mpx.fwdCache[rrId]
+	mpx.fwdLock.RUnlock()
+	if cachedRoute != nil && rCachedRoute != nil && !cachedRoute.IsClosed() && !rCachedRoute.IsClosed() {
+		cachedRoute.Queue(job)
+		mpx.Log.VLog(50, func(l *log.Logger) {
+			l.Println("FWD", job, cachedRoute.String())
+		})
 		return
 	}
-	var loc = discoverLoc{host, upstream}
-	mpx.dLock.Lock()
-	if !mpx.discovered[loc] {
-		mpx.discovered[loc] = true
-		mpx.dNew.Broadcast()
+
+	var dst, found = mpx.routes.DiscoverTimeout(route.RndDistSelector{}, job.Remote, 0)
+	if !found || dst.Distance > 1 {
+		mpx.Log.VLog(10, func(l *log.Logger) {
+			l.Println("Can't forward to", addr.Uint2Host(job.Remote))
+		})
+		return
 	}
-	mpx.dLock.Unlock()
+
+	// Slowpath
+	mpx.fwdLock.Lock()
+	cachedRoute = mpx.fwdCache[rId]
+	rCachedRoute = mpx.fwdCache[rrId]
+	if cachedRoute == nil || rCachedRoute == nil || cachedRoute.IsClosed() || rCachedRoute.IsClosed() {
+		mpx.fwdCache[rId] = dst.Upstream
+		mpx.fwdCache[rrId] = upstream
+		cachedRoute = dst.Upstream
+	}
+	mpx.fwdLock.Unlock()
+	cachedRoute.Queue(job)
+	mpx.Log.VLog(50, func(l *log.Logger) {
+		l.Println("FWD", job, cachedRoute.String())
+	})
+	return
+}
+
+func (mpx *multiplexer) addServiceFeed(s service.ServiceInfo, upstream transport.Transport) {
+	var created bool
+	mpx.serviceLock.Lock()
+	var sMap = mpx.serviceFeeds[s]
+	if sMap == nil {
+		created = true
+		sMap = make(map[transport.Transport]bool)
+		mpx.serviceFeeds[s] = sMap
+	}
+	sMap[upstream] = true
+	if created {
+		mpx.services.Push(s.Service, s)
+	}
+	mpx.serviceLock.Unlock()
+}
+
+func (mpx *multiplexer) delServiceFeed(s service.ServiceInfo, upstream transport.Transport) {
+	var deleted bool
+	mpx.serviceLock.Lock()
+	var sMap = mpx.serviceFeeds[s]
+	if sMap != nil {
+		if sMap[upstream] {
+			delete(sMap, upstream)
+		}
+		if len(sMap) == 0 {
+			deleted = true
+			delete(mpx.serviceFeeds, s)
+		}
+	}
+	if deleted {
+		mpx.services.Pop(s.Service, s)
+	}
+	mpx.serviceLock.Unlock()
 }
 
 func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 	var routes route.Registry
 	var services service.Registry
+
 	go func() {
 		wg.Wait()
 		routes.Close()
 		services.Close()
 	}()
 
+	var joinMeMap = map[string]bool{}
+
 	var cb = func(job protocol.Op, upstream transport.Transport) {
 		if job.Remote != mpx.local && job.Remote != 0 {
-			// Forward chain here
-			var rId = routeId{job.Local, job.Remote}
-			var rrId = routeId{job.Remote, job.Local}
-			// Fastpath
-			mpx.fwdLock.RLock()
-			var cachedRoute = mpx.fwdCache[rId]
-			var rCachedRoute = mpx.fwdCache[rrId]
-			mpx.fwdLock.RUnlock()
-			if cachedRoute != nil && rCachedRoute != nil && !cachedRoute.IsClosed() && !rCachedRoute.IsClosed() {
-				cachedRoute.Queue(job)
-				mpx.Log.VLog(50, func(l *log.Logger) {
-					l.Println("FWD", job, cachedRoute.String())
-				})
-				return
-			}
-
-			var dst, found = mpx.routes.DiscoverTimeout(route.RndDistSelector{}, job.Remote, 0)
-			if !found || dst.Distance > 1 {
-				mpx.Log.VLog(10, func(l *log.Logger) {
-					l.Println("Can't forward to", addr.Uint2Host(job.Remote))
-				})
-				return
-			}
-
-			// Slowpath
-			mpx.fwdLock.Lock()
-			cachedRoute = mpx.fwdCache[rId]
-			rCachedRoute = mpx.fwdCache[rrId]
-			if cachedRoute == nil || rCachedRoute == nil || cachedRoute.IsClosed() || rCachedRoute.IsClosed() {
-				mpx.fwdCache[rId] = dst.Upstream
-				mpx.fwdCache[rrId] = upstream
-				cachedRoute = dst.Upstream
-			}
-			mpx.fwdLock.Unlock()
-			cachedRoute.Queue(job)
-			mpx.Log.VLog(50, func(l *log.Logger) {
-				l.Println("FWD", job, cachedRoute.String())
-			})
+			mpx.fwd(job, upstream)
 			return
 		}
 
 		switch job.Cmd {
 		case opJoinMe:
+			var hp = string(job.Data.Bytes)
 			if !mpx.cfg.NoClient {
-				go mpx.Join("tcp4", string(job.Data.Bytes))
+				go mpx.Join("tcp4", hp)
 			}
+			if !joinMeMap[hp] {
+				joinMeMap[hp] = true
+				mpx.broadcast(job)
+			}
+
 		case opDiscover:
 			var r = route.RouteInfo{
 				Host:     job.Local,
@@ -829,14 +779,10 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 			if r.Host == mpx.local && r.Distance > 0 {
 				return
 			}
-			if r.Distance == 2 {
-				go mpx.discover(upstream, r.Host, r.Distance)
-			} else {
-				mpx.routes.Push(r.Host, r)
-				routes.Push(r.Host, r, func() {
-					mpx.routes.Pop(r.Host, r)
-				})
-			}
+			mpx.routes.Push(r.Host, r)
+			routes.Push(r.Host, r, func() {
+				mpx.routes.Pop(r.Host, r)
+			})
 		case opForget:
 			var r = route.RouteInfo{
 				Host:     job.Local,
@@ -856,11 +802,11 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 			if s.Host == mpx.local {
 				return
 			}
-			mpx.services.Push(s.Service, s)
+			mpx.addServiceFeed(s, upstream)
 			services.Push(s.Service, s, func() {
-				mpx.services.Pop(s.Service, s)
+				mpx.delServiceFeed(s, upstream)
 			})
-		case opNoServcie:
+		case opNoServiсe:
 			var s = service.ServiceInfo{
 				Service: string(job.Data.Bytes),
 				Host:    job.Local,

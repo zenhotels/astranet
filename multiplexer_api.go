@@ -40,7 +40,7 @@ var (
 	opDiscover  = protocol.RegisterFrame(196, "OP_DISCOVER", false)
 	opForget    = protocol.RegisterFrame(197, "OP_FORGET", false)
 	opService   = protocol.RegisterFrame(198, "OP_SERVICE", false)
-	opNoServcie = protocol.RegisterFrame(199, "OP_NO_SERVICE", false)
+	opNoServiсe = protocol.RegisterFrame(199, "OP_NO_SERVICE", false)
 	opJoinMe    = protocol.RegisterFrame(201, "OP_JOIN_ME", false)
 	opRHost     = protocol.RegisterFrame(202, "OP_RHOST", false)
 )
