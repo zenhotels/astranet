@@ -661,7 +661,10 @@ func (mpx *multiplexer) iohandler() {
 
 func (mpx *multiplexer) broadcast(op protocol.Op) {
 	var r route.Registry
-	r.Sync(&mpx.routes, func(hId uint64, route route.RouteInfo) {
+	var buf = make([]byte, len(op.Data.Bytes))
+	copy(buf, op.Data.Bytes)
+	op.Data.Bytes = buf
+	go r.Sync(&mpx.routes, func(hId uint64, route route.RouteInfo) {
 		route.Upstream.Send(op)
 	}, nil)
 }
@@ -769,7 +772,7 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 			}
 			if !joinMeMap[hp] {
 				joinMeMap[hp] = true
-				go mpx.broadcast(job)
+				mpx.broadcast(job)
 			}
 
 		case opDiscover:
