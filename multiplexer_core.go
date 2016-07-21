@@ -661,11 +661,8 @@ func (mpx *multiplexer) iohandler() {
 
 func (mpx *multiplexer) broadcast(op protocol.Op) {
 	var r route.Registry
-	var buf = make([]byte, len(op.Data.Bytes))
-	copy(buf, op.Data.Bytes)
-	op.Data.Bytes = buf
-	go r.Sync(&mpx.routes, func(hId uint64, route route.RouteInfo) {
-		route.Upstream.Send(op)
+	r.Sync(&mpx.routes, func(hId uint64, route route.RouteInfo) {
+		route.Upstream.Queue(op)
 	}, nil)
 }
 
