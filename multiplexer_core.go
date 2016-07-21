@@ -532,7 +532,7 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 	}
 
 	var caps = clientCaps{Distance: distance}
-	var mpxHndl = mpx.EventHandler(&wg)
+	var mpxHndl = mpx.EventHandler(&wg, &caps)
 	var handshakeDone = make(chan struct{}, 1)
 	var opCb = func(job protocol.Op, upstream transport.Transport) {
 		switch job.Cmd {
@@ -784,7 +784,7 @@ func (mpx *multiplexer) delServiceFeed(s service.ServiceInfo, upstream transport
 	mpx.serviceLock.Unlock()
 }
 
-func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
+func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) transport.Callback {
 	var routes route.Registry
 	var services service.Registry
 
@@ -810,7 +810,9 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 			}
 			if !joinMeMap[hp] {
 				joinMeMap[hp] = true
-				mpx.broadcast(job)
+				if caps.ImprovedOpService {
+					mpx.broadcast(job)
+				}
 			}
 
 		case opDiscover:
