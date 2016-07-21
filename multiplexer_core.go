@@ -72,6 +72,9 @@ type multiplexer struct {
 	fwdCache map[routeId]transport.Transport
 	fwdLock  sync.RWMutex
 
+	serviceFeeds map[service.ServiceInfo]map[transport.Transport]bool
+	serviceLock  sync.Mutex
+
 	httpc *http.Client
 
 	routes     route.Registry
@@ -112,6 +115,7 @@ func (mpx *multiplexer) init() {
 			Timeout:   10 * time.Second,
 		}
 		mpx.fwdCache = make(map[routeId]transport.Transport)
+		mpx.serviceFeeds = make(map[service.ServiceInfo]map[transport.Transport]bool)
 
 		go mpx.iohandler()
 		go mpx.routesWatcher()
@@ -362,14 +366,8 @@ func (mpx *multiplexer) discoverServiceLoop(upstream transport.Transport, distan
 	for !upstream.IsClosed() {
 		iter = iter.Next()
 		forEach.Sync(&mpx.services, func(_ string, s service.ServiceInfo) {
-			if s.Host != mpx.local {
-				return
-			}
 			upstream.Queue(serviceMsg(s.Host, s.Port, s.Service))
 		}, func(_ string, s service.ServiceInfo) {
-			if s.Host != mpx.local {
-				return
-			}
 			upstream.Queue(noServiceMsg(s.Host, s.Port, s.Service))
 		})
 	}
@@ -710,14 +708,52 @@ func (mpx *multiplexer) fwd(job protocol.Op, upstream transport.Transport) {
 	return
 }
 
+func (mpx *multiplexer) addServiceFeed(s service.ServiceInfo, upstream transport.Transport) {
+	var created bool
+	mpx.serviceLock.Lock()
+	var sMap = mpx.serviceFeeds[s]
+	if sMap == nil {
+		created = true
+		sMap = make(map[transport.Transport]bool)
+		mpx.serviceFeeds[s] = sMap
+	}
+	sMap[upstream] = true
+	if created {
+		mpx.services.Push(s.Service, s)
+	}
+	mpx.serviceLock.Unlock()
+}
+
+func (mpx *multiplexer) delServiceFeed(s service.ServiceInfo, upstream transport.Transport) {
+	var deleted bool
+	mpx.serviceLock.Lock()
+	var sMap = mpx.serviceFeeds[s]
+	if sMap != nil {
+		if sMap[upstream] {
+			delete(sMap, upstream)
+		}
+		if len(sMap) == 0 {
+			deleted = true
+			delete(mpx.serviceFeeds, s)
+		}
+	}
+	if deleted {
+		mpx.services.Pop(s.Service, s)
+	}
+	mpx.serviceLock.Unlock()
+}
+
 func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 	var routes route.Registry
 	var services service.Registry
+
 	go func() {
 		wg.Wait()
 		routes.Close()
 		services.Close()
 	}()
+
+	var joinMeMap = map[string]bool{}
 
 	var cb = func(job protocol.Op, upstream transport.Transport) {
 		if job.Remote != mpx.local && job.Remote != 0 {
@@ -727,9 +763,15 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 
 		switch job.Cmd {
 		case opJoinMe:
+			var hp = string(job.Data.Bytes)
 			if !mpx.cfg.NoClient {
-				go mpx.Join("tcp4", string(job.Data.Bytes))
+				go mpx.Join("tcp4", hp)
 			}
+			if !joinMeMap[hp] {
+				joinMeMap[hp] = true
+				mpx.broadcast(job)
+			}
+
 		case opDiscover:
 			var r = route.RouteInfo{
 				Host:     job.Local,
@@ -762,9 +804,9 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup) transport.Callback {
 			if s.Host == mpx.local {
 				return
 			}
-			mpx.services.Push(s.Service, s)
+			mpx.addServiceFeed(s, upstream)
 			services.Push(s.Service, s, func() {
-				mpx.services.Pop(s.Service, s)
+				mpx.delServiceFeed(s, upstream)
 			})
 		case opNoServiсe:
 			var s = service.ServiceInfo{
