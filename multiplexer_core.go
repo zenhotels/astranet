@@ -880,8 +880,6 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 				mpx.lNew.Broadcast()
 			}
 			mpx.lAddrLock.Unlock()
-		case socket.OpFin2:
-			// Silently skip some ghost OP_FIN2 frames
 		case opNew:
 			var cb = mpx.dispatcher.CheckFrame(job)
 			if cb != nil {

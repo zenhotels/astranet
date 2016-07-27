@@ -75,7 +75,7 @@ func (self *stream) recv(op protocol.Op, _ transport.Transport) {
 		self.rport = op.LPort
 		self.state.Broadcast()
 		self.sLock.Unlock()
-		self.subscribe(opSynAck, opData, opErr, opFin1, OpFin2, opData, opWndSize, opRewind)
+		self.subscribe(opSynAck, opData, opErr, opFin1, opFin2, opData, opWndSize, opRewind)
 		self.mpx.Queue(self.Op(opAck, nil))
 		return
 	case opAck:
@@ -100,7 +100,7 @@ func (self *stream) recv(op protocol.Op, _ transport.Transport) {
 			copy(buf.Bytes, op.Data.Bytes)
 			self.rBuf = append(self.rBuf, buf)
 		}
-	case OpFin2:
+	case opFin2:
 		var ioDeadline = time.Now().Add(TCP_CLOSE_WND)
 		go func() {
 			self.sLock.Lock()
@@ -212,7 +212,7 @@ func (self *stream) Close() error {
 		self.connHndl.Close()
 	})
 	self.recv(self.Op(opFin1, nil), nil)
-	self.mpx.Queue(self.Op(OpFin2, nil))
+	self.mpx.Queue(self.Op(opFin2, nil))
 	self.state.Broadcast()
 	return nil
 }
@@ -300,7 +300,7 @@ func NewServerSocket(
 	conn.connHndl = mpx.Handle(
 		conn.recv,
 	)
-	conn.subscribe(opAck, opData, opErr, opFin1, OpFin2, opData, opWndSize, opRewind)
+	conn.subscribe(opAck, opData, opErr, opFin1, opFin2, opData, opWndSize, opRewind)
 	conn.mpx.Queue(conn.Op(opSyn, nil))
 	return conn
 }

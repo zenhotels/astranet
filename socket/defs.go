@@ -29,7 +29,7 @@ var (
 	opSyn  = protocol.RegisterFrame(uint8(stSyn), "OP_SYN", true)
 	opAck  = protocol.RegisterFrame(uint8(stAck), "OP_ACK", true)
 	opFin1 = protocol.RegisterFrame(uint8(stFin1), "OP_FIN1", false)
-	OpFin2 = protocol.RegisterFrame(uint8(stFin2), "OP_FIN2", false)
+	opFin2 = protocol.RegisterFrame(uint8(stFin2), "OP_FIN2", false)
 	opErr  = protocol.RegisterFrame(uint8(stErr), "OP_ERR", false)
 
 	opSynAck      = protocol.RegisterFrame(uint8(stSynAck), "OP_SYN_ACK", false)
