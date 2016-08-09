@@ -770,18 +770,17 @@ func (mpx *multiplexer) join(network, address string) error {
 }
 
 func (mpx *multiplexer) Join(network, address string) error {
-	var host, _, _ = net.SplitHostPort(address)
+	var host, port, _ = net.SplitHostPort(address)
 	var addrList, lookupErr = net.LookupHost(host)
 	if lookupErr == nil && len(addrList) > 0 {
 		for _, addr := range addrList {
-			mpx.join(network, addr)
+			mpx.join(network, net.JoinHostPort(addr, port))
 		}
 	} else {
 		return mpx.join(network, address)
 	}
 	return nil
 }
-
 
 func (mpx *multiplexer) findRouteTimeout(remote uint64, maxDistance int, t time.Duration) (route *mpxRemote) {
 	for distance := 0; distance <= maxDistance; distance++ {
