@@ -733,7 +733,7 @@ func (mpx *multiplexer) localHostDiscover(l net.Addr) {
 	}
 }
 
-func (mpx *multiplexer) Join(network, address string) error {
+func (mpx *multiplexer) join(network, address string) error {
 	mpx.init()
 	mpx.bLock.Lock()
 	var _, joined = mpx.joined[network+address]
@@ -766,6 +766,18 @@ func (mpx *multiplexer) Join(network, address string) error {
 		}
 	}()
 
+	return nil
+}
+
+func (mpx *multiplexer) Join(network, address string) error {
+	var addrList, lookupErr = net.LookupAddr(address)
+	if lookupErr == nil && len(addrList) > 0 {
+		for _, addr := range addrList {
+			mpx.join(network, addr)
+		}
+	} else {
+		return mpx.join(network, address)
+	}
 	return nil
 }
 
