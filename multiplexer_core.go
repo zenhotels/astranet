@@ -804,14 +804,30 @@ func (mpx *multiplexer) delServiceFeed(s service.ServiceInfo, upstream transport
 	mpx.serviceLock.Unlock()
 }
 
+func (mpx *multiplexer) delUpstream(upstream transport.Transport) {
+	var sList = []service.ServiceInfo{}
+	mpx.serviceLock.Lock()
+	for s, rM := range mpx.serviceFeeds {
+		for route := range rM {
+			if route == upstream {
+				sList = append(sList, s)
+			}
+		}
+	}
+	mpx.serviceLock.Unlock()
+	for _, s := range sList {
+		mpx.delServiceFeed(s, upstream)
+	}
+}
+
 func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) transport.Callback {
 	var routes route.Registry
 	var services service.Registry
 
 	go func() {
 		wg.Wait()
-		routes.Close()
 		services.Close()
+		routes.Close()
 	}()
 
 	var joinMeMap = map[string]bool{}
@@ -847,6 +863,7 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 			mpx.routes.Push(r.Host, r)
 			routes.Push(r.Host, r, func() {
 				mpx.routes.Pop(r.Host, r)
+				mpx.delUpstream(upstream)
 			})
 		case opForget:
 			var r = route.RouteInfo{
