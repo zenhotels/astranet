@@ -340,6 +340,7 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, caps clientCa
 				upstream.Queue(discoveryMsg(s.Host, s.Distance+caps.Distance))
 			}
 		}, func(_ uint64, s route.RouteInfo) {
+			mpx.delUpstream(s.Upstream)
 			if s.Distance+caps.Distance <= maxDistance {
 				upstream.Queue(forgetMsg(s.Host, s.Distance+caps.Distance))
 			}
@@ -863,7 +864,6 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 			mpx.routes.Push(r.Host, r)
 			routes.Push(r.Host, r, func() {
 				mpx.routes.Pop(r.Host, r)
-				mpx.delUpstream(upstream)
 			})
 		case opForget:
 			var r = route.RouteInfo{
