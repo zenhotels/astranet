@@ -60,6 +60,7 @@ type multiplexer struct {
 		LoopBack bool
 		NoServer bool
 		NoClient bool
+		NoRouter bool
 	}
 
 	joined map[string]bool
@@ -111,7 +112,7 @@ func (mpx *multiplexer) init() {
 		mpx.dNew.L = &mpx.dLock
 		mpx.lPort = 1 << 24
 		mpx.joined = make(map[string]bool)
-		mpx.MaxDistance = 3
+		mpx.MaxDistance = 2
 		mpx.lhosts = make(map[string]bool)
 		mpx.lports = make(map[string]bool)
 		mpx.lNew.L = &mpx.lAddrLock
@@ -121,6 +122,10 @@ func (mpx *multiplexer) init() {
 		}
 		mpx.fwdCache = make(map[routeId]transport.Transport)
 		mpx.serviceFeeds = make(map[service.ServiceInfo]map[transport.Transport]bool)
+
+		if !mpx.cfg.NoRouter {
+			mpx.MaxDistance = 1
+		}
 
 		go mpx.iohandler()
 		go mpx.routesWatcher()
@@ -175,6 +180,7 @@ func (mpx *multiplexer) Client() AstraNet {
 	var other = mpx.copy()
 	other.cfg.NoServer = true
 	other.cfg.NoClient = false
+	other.cfg.NoRouter = true
 	return other
 }
 
@@ -182,6 +188,15 @@ func (mpx *multiplexer) Server() AstraNet {
 	var other = mpx.copy()
 	other.cfg.NoServer = false
 	other.cfg.NoClient = true
+	other.cfg.NoRouter = true
+	return other
+}
+
+func (mpx *multiplexer) Router() AstraNet {
+	var other = mpx.copy()
+	other.cfg.NoServer = false
+	other.cfg.NoClient = false
+	other.cfg.NoRouter = false
 	return other
 }
 
@@ -327,10 +342,6 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, caps clientCa
 	}
 
 	var maxDistance = mpx.MaxDistance
-	if caps.ImprovedOpService {
-		maxDistance = 2
-	}
-
 	var forEach route.Registry
 	var iter = mpx.routes.Iter()
 	for !upstream.IsClosed() {

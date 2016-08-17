@@ -26,6 +26,7 @@ type AstraNet interface {
 	WithLoopBack() AstraNet
 	Client() AstraNet
 	Server() AstraNet
+	Router() AstraNet
 
 	HttpDial(net, host string) (net.Conn, error)
 }
