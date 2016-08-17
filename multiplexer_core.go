@@ -27,7 +27,6 @@ import (
 	"github.com/zenhotels/astranet/skykiss"
 	"github.com/zenhotels/astranet/socket"
 	"github.com/zenhotels/astranet/transport"
-	"fmt"
 )
 
 type fwdLoc struct {
