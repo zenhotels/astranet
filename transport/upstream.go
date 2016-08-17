@@ -30,6 +30,8 @@ type transport struct {
 	writer    *bufio.Writer
 	closer    io.Closer
 
+	onCloseCb []func(Transport)
+
 	wdeadline   time.Time
 	tasker      *time.Ticker
 	deadlines   map[int][]*sync.Cond
@@ -172,7 +174,7 @@ func (self *transport) SendTimeout(op protocol.Op, t time.Duration) (err error) 
 	case op.Cmd.Priority():
 		self.wSysBuf = append(self.wSysBuf, op.Encode())
 	default:
-		loopDone:
+	loopDone:
 		for {
 			switch {
 			case self.wClosed:
@@ -219,6 +221,11 @@ func (self *transport) Queue(op protocol.Op) {
 func (self *transport) IOLoopWriter() error {
 	var w = self.writer
 	var jobs []skykiss.BytesPackage
+
+	defer func() {
+		self.Close()
+	}()
+
 	self.wLock.Lock()
 	for !self.wClosed {
 		if len(self.wSysBuf)+len(self.wDataBuf) == 0 {
@@ -284,9 +291,14 @@ func (self *transport) Close() {
 	self.wdeadline = time.Now().Add(time.Second)
 	self.wNew.Broadcast()
 	var closer = self.closer
+	var closeCb = self.onCloseCb
+	self.onCloseCb = nil
 	self.wLock.Unlock()
 	if closer != nil {
 		go closer.Close()
+	}
+	for _, cb := range closeCb {
+		cb(self)
 	}
 }
 
@@ -425,6 +437,15 @@ func (self *transport) IOLoopReader() error {
 	}
 
 	return nil
+}
+
+func (self *transport) OnClose(cb func(Transport)) {
+	self.wLock.Lock()
+	if self.wClosed {
+		go cb(self)
+	}
+	self.onCloseCb = append(self.onCloseCb, cb)
+	self.wLock.Unlock()
 }
 
 func (self *transport) Join() {

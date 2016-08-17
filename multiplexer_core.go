@@ -308,9 +308,9 @@ func (mpx *multiplexer) bind(network string, port uint32, s string) (net.Listene
 		tFilter.Close()
 	})
 	if s != "" {
-		mpx.services.Push(s, lr.ServiceInfo)
+		mpx.addServiceFeed(lr.ServiceInfo, nil)
 		lr.OnClose(func() {
-			mpx.services.Pop(s, service.ServiceInfo{s, mpx.local, port})
+			mpx.delServiceFeed(lr.ServiceInfo, nil)
 		})
 	}
 	return lr, nil
@@ -563,6 +563,7 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 
 	var remote = transport.Upstream(conn, mpx.Log, opCb, keepalive)
 	remote.Queue(protocol.Op{Cmd: opHandshake, Local: mpx.local})
+	remote.OnClose(mpx.delUpstream)
 
 	var w4handshake = time.NewTimer(time.Second * 10)
 	select {
@@ -782,7 +783,7 @@ func (mpx *multiplexer) fwd(job protocol.Op, upstream transport.Transport) {
 }
 
 func (mpx *multiplexer) addServiceFeed(s service.ServiceInfo, upstream transport.Transport) {
-	if upstream.IsClosed() {
+	if upstream != nil && upstream.IsClosed() {
 		return
 	}
 	var created bool
@@ -824,6 +825,9 @@ func (mpx *multiplexer) delUpstream(upstream transport.Transport) {
 	mpx.serviceLock.Lock()
 	for s, rM := range mpx.serviceFeeds {
 		for route := range rM {
+			if route == nil {
+				continue
+			}
 			if route == upstream {
 				sList[s] = upstream
 			}
@@ -860,24 +864,20 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 		switch job.Cmd {
 		case opJoinMe:
 			var hp = string(job.Data.Bytes)
-			if !mpx.cfg.NoClient {
+			if !mpx.cfg.NoClient && job.Local != mpx.local {
 				go mpx.Join("tcp4", hp)
 			}
 			if !joinMeMap[hp] {
 				joinMeMap[hp] = true
-				if caps.ImprovedOpService {
+				if caps.ImprovedOpService && !mpx.cfg.NoRouter {
 					mpx.broadcast(job)
 				}
 			}
-
 		case opDiscover:
 			var r = route.RouteInfo{
 				Host:     job.Local,
 				Distance: int(byte(job.Data.Bytes[0])),
 				Upstream: upstream,
-			}
-			if r.Host == mpx.local && r.Distance > 0 {
-				return
 			}
 			mpx.routes.Push(r.Host, r)
 			routes.Push(r.Host, r, func() {
@@ -889,9 +889,6 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 				Distance: int(byte(job.Data.Bytes[0])),
 				Upstream: upstream,
 			}
-			if r.Host == mpx.local && r.Distance > 0 {
-				return
-			}
 			routes.Pop(r.Host, r)
 		case opService:
 			var s = service.ServiceInfo{
@@ -899,21 +896,12 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 				Host:    job.Local,
 				Port:    job.LPort,
 			}
-			if s.Host == mpx.local {
-				return
-			}
 			mpx.addServiceFeed(s, upstream)
-			services.Push(s.Service, s, func() {
-				mpx.delServiceFeed(s, upstream)
-			})
 		case opNoServiсe:
 			var s = service.ServiceInfo{
 				Service: string(job.Data.Bytes),
 				Host:    job.Local,
 				Port:    job.LPort,
-			}
-			if s.Host == mpx.local {
-				return
 			}
 			mpx.delServiceFeed(s, upstream)
 		case opRHost:

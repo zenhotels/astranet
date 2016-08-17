@@ -32,6 +32,7 @@ type Transport interface {
 	Close()
 	Drain()
 	IsClosed() bool
+	OnClose(func(u Transport))
 }
 
 const (
