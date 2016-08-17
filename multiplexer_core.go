@@ -771,6 +771,9 @@ func (mpx *multiplexer) fwd(job protocol.Op, upstream transport.Transport) {
 }
 
 func (mpx *multiplexer) addServiceFeed(s service.ServiceInfo, upstream transport.Transport) {
+	if upstream.IsClosed() {
+		return
+	}
 	var created bool
 	mpx.serviceLock.Lock()
 	var sMap = mpx.serviceFeeds[s]
@@ -806,17 +809,21 @@ func (mpx *multiplexer) delServiceFeed(s service.ServiceInfo, upstream transport
 }
 
 func (mpx *multiplexer) delUpstream(upstream transport.Transport) {
-	var sList = []service.ServiceInfo{}
+	var sList = map[service.ServiceInfo]transport.Transport{}
 	mpx.serviceLock.Lock()
 	for s, rM := range mpx.serviceFeeds {
 		for route := range rM {
 			if route == upstream {
-				sList = append(sList, s)
+				sList[s] = upstream
+			}
+			// Emergency cleanup case
+			if route.IsClosed() {
+				sList[s] = route
 			}
 		}
 	}
 	mpx.serviceLock.Unlock()
-	for _, s := range sList {
+	for s, upstream := range sList {
 		mpx.delServiceFeed(s, upstream)
 	}
 }
