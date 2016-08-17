@@ -132,6 +132,7 @@ func (mpx *multiplexer) init() {
 		go mpx.serviceWatcher()
 		go mpx.fwdGc()
 		go mpx.httpDefaultHandler()
+		go mpx.delUpstreamsLoop()
 
 		if mpx.cfg.LoopBack {
 			var ioLoop IOLoop
@@ -840,6 +841,29 @@ func (mpx *multiplexer) delUpstream(upstream transport.Transport) {
 	mpx.serviceLock.Unlock()
 	for s, upstream := range sList {
 		mpx.delServiceFeed(s, upstream)
+	}
+}
+
+func (mpx *multiplexer) delUpstreamsLoop() {
+	for {
+		var sList = map[service.ServiceInfo]transport.Transport{}
+		mpx.serviceLock.Lock()
+		for s, rM := range mpx.serviceFeeds {
+			for route := range rM {
+				if route == nil {
+					continue
+				}
+				// Emergency cleanup case
+				if route.IsClosed() {
+					sList[s] = route
+				}
+			}
+		}
+		mpx.serviceLock.Unlock()
+		for s, upstream := range sList {
+			mpx.delServiceFeed(s, upstream)
+		}
+		time.Sleep(time.Second)
 	}
 }
 
