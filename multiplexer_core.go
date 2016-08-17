@@ -904,7 +904,7 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 			if s.Host == mpx.local {
 				return
 			}
-			services.Pop(s.Service, s)
+			mpx.delServiceFeed(s, upstream)
 		case opRHost:
 			var sName = string(job.Data.Bytes)
 			var host, _, hpErr = net.SplitHostPort(sName)
