@@ -27,6 +27,7 @@ import (
 	"github.com/zenhotels/astranet/skykiss"
 	"github.com/zenhotels/astranet/socket"
 	"github.com/zenhotels/astranet/transport"
+	"fmt"
 )
 
 type fwdLoc struct {
@@ -132,7 +133,6 @@ func (mpx *multiplexer) init() {
 		go mpx.serviceWatcher()
 		go mpx.fwdGc()
 		go mpx.httpDefaultHandler()
-		go mpx.delUpstreamsLoop()
 
 		if mpx.cfg.LoopBack {
 			var ioLoop IOLoop
@@ -352,7 +352,6 @@ func (mpx *multiplexer) discoverLoop(upstream transport.Transport, caps clientCa
 				upstream.Queue(discoveryMsg(s.Host, s.Distance+caps.Distance))
 			}
 		}, func(_ uint64, s route.RouteInfo) {
-			mpx.delUpstream(s.Upstream)
 			if s.Distance+caps.Distance <= maxDistance {
 				upstream.Queue(forgetMsg(s.Host, s.Distance+caps.Distance))
 			}
@@ -406,6 +405,7 @@ func (mpx *multiplexer) routesWatcher() {
 
 	for {
 		iter = iter.Next()
+		var toCheckList = []uint64{}
 		forEach.Sync(&mpx.routes, func(_ uint64, s route.RouteInfo) {
 			mpx.Log.VLog(10, func(l *log.Logger) {
 				l.Printf(
@@ -420,7 +420,14 @@ func (mpx *multiplexer) routesWatcher() {
 					addr.Uint2Host(mpx.local), addr.Uint2Host(s.Host), s.Upstream, s.Distance,
 				)
 			})
+			toCheckList = append(toCheckList, s.Host)
 		})
+		for _, host := range toCheckList {
+			var _, routesFound = forEach.Discover(route.RandomSelector{}, host)
+			if !routesFound {
+				mpx.delServiceForHost(host)
+			}
+		}
 	}
 }
 
@@ -564,7 +571,6 @@ func (mpx *multiplexer) attachDistanceNonBlock(conn io.ReadWriter, distance int)
 
 	var remote = transport.Upstream(conn, mpx.Log, opCb, keepalive)
 	remote.Queue(protocol.Op{Cmd: opHandshake, Local: mpx.local})
-	remote.OnClose(mpx.delUpstream)
 
 	var w4handshake = time.NewTimer(time.Second * 10)
 	select {
@@ -821,49 +827,23 @@ func (mpx *multiplexer) delServiceFeed(s service.ServiceInfo, upstream transport
 	mpx.serviceLock.Unlock()
 }
 
-func (mpx *multiplexer) delUpstream(upstream transport.Transport) {
+func (mpx *multiplexer) delServiceForHost(id uint64) {
 	var sList = map[service.ServiceInfo]transport.Transport{}
 	mpx.serviceLock.Lock()
 	for s, rM := range mpx.serviceFeeds {
+		if s.Host != id {
+			continue
+		}
 		for route := range rM {
 			if route == nil {
 				continue
 			}
-			if route == upstream {
-				sList[s] = upstream
-			}
-			// Emergency cleanup case
-			if route.IsClosed() {
-				sList[s] = route
-			}
+			sList[s] = route
 		}
 	}
 	mpx.serviceLock.Unlock()
 	for s, upstream := range sList {
 		mpx.delServiceFeed(s, upstream)
-	}
-}
-
-func (mpx *multiplexer) delUpstreamsLoop() {
-	for {
-		var sList = map[service.ServiceInfo]transport.Transport{}
-		mpx.serviceLock.Lock()
-		for s, rM := range mpx.serviceFeeds {
-			for route := range rM {
-				if route == nil {
-					continue
-				}
-				// Emergency cleanup case
-				if route.IsClosed() {
-					sList[s] = route
-				}
-			}
-		}
-		mpx.serviceLock.Unlock()
-		for s, upstream := range sList {
-			mpx.delServiceFeed(s, upstream)
-		}
-		time.Sleep(time.Second)
 	}
 }
 
