@@ -18,7 +18,7 @@ var msg = flag.String("msg", "abra-kadabra", "message")
 func main() {
 	flag.Parse()
 
-	var astraNet = astranet.New().WithEnv(*name, "chat")
+	var astraNet = astranet.New().Client().WithEnv(*name, "chat")
 	var httpClient = &http.Client{
 		Transport: &http.Transport{
 			Dial: astraNet.HttpDial,

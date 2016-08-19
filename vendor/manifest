@@ -1,0 +1,34 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/cenk/backoff",
+			"repository": "https://github.com/cenk/backoff",
+			"vcs": "",
+			"revision": "cdf48bbc1eb78d1349cbda326a4a037f7ba565c6",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/stathat/consistent",
+			"repository": "https://github.com/stathat/consistent",
+			"vcs": "",
+			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/zenhotels/btree-2d",
+			"repository": "https://github.com/zenhotels/btree-2d",
+			"vcs": "git",
+			"revision": "61901d6b1c202c811230766280183784276c9657",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "stathat.com/c/consistent",
+			"repository": "https://github.com/stathat/consistent",
+			"vcs": "",
+			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
+			"branch": "master"
+		}
+	]
+}

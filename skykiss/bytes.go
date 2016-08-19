@@ -1,4 +1,4 @@
-package astranet
+package skykiss
 
 import "sync"
 

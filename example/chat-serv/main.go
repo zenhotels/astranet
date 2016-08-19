@@ -24,7 +24,7 @@ func main() {
 	if lErr != nil {
 		log.Panic(lErr)
 	}
-	go astraNet.ListenAndServe("tcp4", "0.0.0.0:0")
+	astraNet.ListenAndServe("tcp4", "0.0.0.0:20000")
 
 	http.HandleFunc("/send", newMsg)
 	http.Serve(skyL, nil)

@@ -16,7 +16,7 @@ import (
 	"github.com/zenhotels/astranet"
 )
 
-var astraNet = astranet.New()
+var astraNet = astranet.New().Router()
 var reverse = &httputil.ReverseProxy{
 	Transport: &http.Transport{
 		Dial: func(lnet, laddr string) (net.Conn, error) {

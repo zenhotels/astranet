@@ -35,7 +35,7 @@ func echoLoop(listener net.Listener) error {
 func main() {
 	var astraNet = astranet.New().WithEnv("test").Server()
 	go astraNet.ListenAndServe("tcp4", ":14000")
-	os.Setenv("MPXROUTER", "localhost:14000")
+	os.Setenv("MPXROUTER", "localhost:10000")
 
 	var astraNet2 = astranet.New().WithEnv("test", "skynet").Server()
 
