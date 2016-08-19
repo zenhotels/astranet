@@ -701,6 +701,7 @@ func (mpx *multiplexer) Join(network, address string) error {
 	if lookupErr == nil && len(addrList) > 0 {
 		for _, addr := range addrList {
 			mpx.join(network, net.JoinHostPort(addr, port))
+
 		}
 	} else {
 		return mpx.join(network, address)
@@ -829,11 +830,13 @@ func (mpx *multiplexer) EventHandler(wg *sync.WaitGroup, caps *clientCaps) trans
 			}
 			if s.Host != caps.Host {
 				s.Priority = 1
-				upstream.Queue(protocol.Op{
-					Cmd:    opDiscover,
-					Local:  mpx.local,
-					Remote: s.Host,
-				})
+				if strings.HasSuffix(s.Service, mpx.cfg.Env) {
+					upstream.Queue(protocol.Op{
+						Cmd:    opDiscover,
+						Local:  mpx.local,
+						Remote: s.Host,
+					})
+				}
 			}
 
 			if s.Priority == 0 && mpx.cfg.Router {
