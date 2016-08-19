@@ -22,7 +22,7 @@ func TestUpstreamClose(t *testing.T) {
 	var l = glog.New(0, log.New(os.Stderr, "TestUpstreamClose", log.LstdFlags))
 
 	var upstream = transport.Upstream(ioLoop, l, nil, time.Minute)
-	var client = NewClientSocket("", 1, 1, upstream)
+	var client = NewClientSocket("", 1, 1, upstream, nil)
 	var server = NewServerSocket("", 2, 2, 1, 1, upstream)
 	go func() {
 		server.Write(msg)
@@ -41,7 +41,7 @@ func BenchmarkUpstreamClose(b *testing.B) {
 	var l = glog.New(0, log.New(os.Stderr, "TestUpstreamClose", log.LstdFlags))
 
 	var upstream = transport.Upstream(ioLoop, l, nil, time.Minute)
-	var client = NewClientSocket("", 1, 1, upstream)
+	var client = NewClientSocket("", 1, 1, upstream, nil)
 	var server = NewServerSocket("", 2, 2, 1, 1, upstream)
 	go func() {
 		server.Write(msg)

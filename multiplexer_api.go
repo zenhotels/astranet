@@ -36,13 +36,16 @@ type IOLoop struct {
 	io.Writer
 }
 
+type WelcomeInfo struct {
+	RAddr string
+}
+
 var (
-	opNew       = protocol.RegisterFrame(1, "OP_NEW", false)
-	opDiscover  = protocol.RegisterFrame(196, "OP_DISCOVER", false)
-	opForget    = protocol.RegisterFrame(197, "OP_FORGET", false)
-	opService   = protocol.RegisterFrame(198, "OP_SERVICE", false)
-	opNoServiсe = protocol.RegisterFrame(199, "OP_NO_SERVICE", false)
-	opJoinMe    = protocol.RegisterFrame(201, "OP_JOIN_ME", false)
-	opRHost     = protocol.RegisterFrame(202, "OP_RHOST", false)
-	opHandshake = protocol.RegisterFrame(203, "OP_HANDSHAKE", false)
+	opDial      = protocol.RegisterFrame(190, "OP_DIAL", false)
+	opHandshake = protocol.RegisterFrame(191, "OP_HANDSHAKE", false)
+	opService   = protocol.RegisterFrame(192, "OP_SERVICE", false)
+	opNoServiсe = protocol.RegisterFrame(193, "OP_NO_SERVICE", false)
+	opFollow    = protocol.RegisterFrame(194, "OP_FOLLOW", false)
+	opDiscover  = protocol.RegisterFrame(195, "OP_DISCOVER", false)
+	opRst       = protocol.RegisterFrame(196, "OP_RESET", false)
 )

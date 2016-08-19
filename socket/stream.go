@@ -39,6 +39,8 @@ type stream struct {
 	mpx       transport.Transport
 	rDeadLine time.Time
 	wDeadLine time.Time
+
+	onCloseCb func()
 }
 
 func (self *stream) Join(op ConnState) (state ConnState) {
@@ -214,6 +216,9 @@ func (self *stream) Close() error {
 	self.recv(self.Op(opFin1, nil), nil)
 	self.mpx.Queue(self.Op(opFin2, nil))
 	self.state.Broadcast()
+	if self.onCloseCb != nil {
+		self.onCloseCb()
+	}
 	return nil
 }
 
@@ -309,8 +314,10 @@ func NewClientSocket(
 	network string,
 	local uint64, lport uint32,
 	mpx transport.Transport,
+	onCloseCb func(),
 ) net.Conn {
 	var conn = newSocket(network, local, lport, mpx)
 	conn.subscribe(opSyn)
+	conn.onCloseCb = onCloseCb
 	return conn
 }

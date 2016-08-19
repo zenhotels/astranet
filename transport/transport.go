@@ -3,8 +3,9 @@ package transport
 import (
 	"time"
 
-	"github.com/zenhotels/astranet/protocol"
 	"net"
+
+	"github.com/zenhotels/astranet/protocol"
 )
 
 type Filter struct {
@@ -39,4 +40,5 @@ const (
 	WND_SIZE = 32 * 1024
 )
 
-var opNoOp = protocol.RegisterFrame(200, "OP_NO_OP", false)
+var opPing = protocol.RegisterFrame(160, "OP_PING", false)
+var opPong = protocol.RegisterFrame(161, "OP_PONG", false)

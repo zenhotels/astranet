@@ -110,7 +110,7 @@ func (self *transport) wakeUpLoop() {
 		}
 		if time.Now().Sub(self.lastIODone) > time.Duration(float64(self.keepalive)*0.5) {
 			if !self.wCloseIfIdle {
-				go self.Send(protocol.Op{Cmd: opNoOp})
+				self.Queue(protocol.Op{Cmd: opPing})
 			}
 		}
 
@@ -201,7 +201,7 @@ func (self *transport) SendTimeout(op protocol.Op, t time.Duration) (err error) 
 
 func (self *transport) Queue(op protocol.Op) {
 	self.Log.VLog(50, func(l *log.Logger) {
-		l.Printf("%s QUEUE %s", self.id, op.String())
+		l.Printf("%s QUEU %s", self.id, op.String())
 	})
 
 	self.wLock.Lock()
@@ -398,7 +398,7 @@ func (self *transport) IOLoopReader() error {
 		opHeader = job
 		opLock.Unlock()
 
-		self.Log.VLog(50, func(l *log.Logger) {
+		self.Log.VLog(60, func(l *log.Logger) {
 			l.Printf("%s HEAD %s", self.id, job.String())
 		})
 
@@ -425,7 +425,10 @@ func (self *transport) IOLoopReader() error {
 		self.dLock.Unlock()
 
 		switch job.Cmd {
-		case opNoOp:
+		case opPing:
+			self.Queue(protocol.Op{Cmd: opPong})
+			continue
+		case opPong:
 			continue
 		}
 

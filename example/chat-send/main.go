@@ -10,6 +10,7 @@ import (
 	"log"
 
 	"github.com/zenhotels/astranet"
+	"time"
 )
 
 var name = flag.String("name", "anonym", "recepient to send messages to")

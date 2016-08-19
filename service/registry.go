@@ -45,7 +45,11 @@ func (self *Registry) Pop(id string, srv ServiceInfo) {
 	self.touch()
 }
 
-func (self *Registry) DiscoverTimeout(r Selector, sname string, wait time.Duration) (srv ServiceInfo, found bool) {
+func (self *Registry) DiscoverTimeout(
+	r Selector, sname string,
+	wait time.Duration,
+	reducer Reducer,
+) (srv ServiceInfo, found bool) {
 	self.init()
 
 	var started = time.Now()
@@ -60,6 +64,9 @@ func (self *Registry) DiscoverTimeout(r Selector, sname string, wait time.Durati
 		})
 
 		if len(tPool) == 0 {
+			if reducer != nil {
+				tPool = reducer.Reduce(tPool)
+			}
 			var timeLeft = stopAt.Sub(time.Now())
 			if timeLeft > 0 {
 				skykiss.WaitTimeout(&self.rCond, timeLeft)
@@ -76,9 +83,13 @@ func (self *Registry) DiscoverTimeout(r Selector, sname string, wait time.Durati
 	return
 }
 
-func (self *Registry) Discover(r Selector, sname string) (ServiceInfo, bool) {
+func (self *Registry) Discover(
+	r Selector,
+	sname string,
+	reducer Reducer,
+) (ServiceInfo, bool) {
 	self.init()
-	return self.DiscoverTimeout(r, sname, 0)
+	return self.DiscoverTimeout(r, sname, 0, reducer)
 }
 
 func (self *Registry) Sync(other *Registry, onAdd, onDelete func(string, ServiceInfo)) {
