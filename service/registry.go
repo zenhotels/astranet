@@ -64,15 +64,15 @@ func (self *Registry) DiscoverTimeout(
 		})
 
 		if len(tPool) == 0 {
-			if reducer != nil {
-				tPool = reducer.Reduce(tPool)
-			}
 			var timeLeft = stopAt.Sub(time.Now())
 			if timeLeft > 0 {
 				skykiss.WaitTimeout(&self.rCond, timeLeft)
 				continue
 			}
 		} else {
+			if reducer != nil {
+				tPool = reducer.Reduce(tPool)
+			}
 			srv, found = tPool[r.Select(tPool)], true
 		}
 		break
