@@ -204,7 +204,7 @@ func (mpx *multiplexer) Router() AstraNet {
 }
 
 func (mpx *multiplexer) httpDefaultHandler() {
-	var httpL, httpLErr = mpx.bind("", 1, "ipc")
+	var httpL, httpLErr = mpx.bind("", 1, "ipc."+addr.Uint2Host(mpx.local)+mpx.cfg.Env)
 	if httpLErr != nil {
 		mpx.Log.Panic(httpLErr)
 	}
