@@ -32,7 +32,7 @@ var (
 	opFin2 = protocol.RegisterFrame(uint8(stFin2), "OP_FIN2", false)
 	opErr  = protocol.RegisterFrame(uint8(stErr), "OP_ERR", false)
 
-	opSynAck      = protocol.RegisterFrame(uint8(stSynAck), "OP_SYN_ACK", false)
+	opSynAck      = protocol.RegisterFrame(uint8(stSynAck), "OP_SYN_ACK", true)
 	opForceClosed = protocol.RegisterFrame(uint8(stForceClosed), "OP_FORCE_CLOSED", false)
 
 	opData    = protocol.RegisterFrame(128, "OP_DATA", false)

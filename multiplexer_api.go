@@ -41,11 +41,11 @@ type WelcomeInfo struct {
 }
 
 var (
-	opDial      = protocol.RegisterFrame(190, "OP_DIAL", false)
-	opHandshake = protocol.RegisterFrame(191, "OP_HANDSHAKE", false)
+	opDial      = protocol.RegisterFrame(190, "OP_DIAL", true)
+	opHandshake = protocol.RegisterFrame(191, "OP_HANDSHAKE", true)
 	opService   = protocol.RegisterFrame(192, "OP_SERVICE", false)
 	opNoServiсe = protocol.RegisterFrame(193, "OP_NO_SERVICE", false)
 	opFollow    = protocol.RegisterFrame(194, "OP_FOLLOW", false)
 	opDiscover  = protocol.RegisterFrame(195, "OP_DISCOVER", false)
-	opRst       = protocol.RegisterFrame(196, "OP_RESET", false)
+	opRst       = protocol.RegisterFrame(196, "OP_RESET", true)
 )

@@ -21,13 +21,13 @@ func (self *Router) init() {
 
 func (self *Router) Handle(cb Callback, filters ...Filter) Handler {
 	self.init()
-	self.cbLock.Lock()
 	var eList = make(map[Filter]*list.Element, len(filters))
 	for _, f := range filters {
 		if eList[f] != nil {
 			continue
 		}
 
+		self.cbLock.Lock()
 		var l = self.cbMap[f]
 		if l == nil {
 			l = list.New()
@@ -35,8 +35,8 @@ func (self *Router) Handle(cb Callback, filters ...Filter) Handler {
 		}
 
 		eList[f] = l.PushBack(cb)
+		self.cbLock.Unlock()
 	}
-	self.cbLock.Unlock()
 	return &handler{cb, eList, self, false}
 }
 
