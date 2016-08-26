@@ -20,7 +20,7 @@ type Registry struct {
 func (self *Registry) init() {
 	self.initCtl.Do(func() {
 		self.sMap = BTreeNew()
-		self.rCond.L = &self.rLock
+		self.rCond.L = self.rLock.RLocker()
 	})
 }
 
@@ -45,12 +45,16 @@ func (self *Registry) Pop(id uint64, srv RouteInfo) {
 	self.touch()
 }
 
-func (self *Registry) DiscoverTimeout(r Selector, sname uint64, wait time.Duration) (srv RouteInfo, found bool) {
+func (self *Registry) DiscoverTimeout(
+	r Selector, sname uint64,
+	wait time.Duration,
+	reducer Reducer,
+) (srv RouteInfo, found bool) {
 	self.init()
 
 	var started = time.Now()
 	var stopAt = started.Add(wait)
-	self.rLock.Lock()
+	self.rLock.RLock()
 	for {
 
 		var tPool = make([]RouteInfo, 0)
@@ -66,19 +70,27 @@ func (self *Registry) DiscoverTimeout(r Selector, sname uint64, wait time.Durati
 				continue
 			}
 		} else {
+			self.rLock.RUnlock()
+			if reducer != nil {
+				tPool = reducer.Reduce(tPool)
+			}
 			srv, found = tPool[r.Select(tPool)], true
+			break
 		}
+		self.rLock.RUnlock()
 		break
-
 	}
-	self.rLock.Unlock()
 
 	return
 }
 
-func (self *Registry) Discover(r Selector, sname uint64) (RouteInfo, bool) {
+func (self *Registry) Discover(
+	r Selector,
+	sname uint64,
+	reducer Reducer,
+) (RouteInfo, bool) {
 	self.init()
-	return self.DiscoverTimeout(r, sname, 0)
+	return self.DiscoverTimeout(r, sname, 0, reducer)
 }
 
 func (self *Registry) Sync(other *Registry, onAdd, onDelete func(uint64, RouteInfo)) {

@@ -710,7 +710,7 @@ func (mpx *multiplexer) Join(network, address string) error {
 }
 
 func (mpx *multiplexer) findRouteTimeout(remote uint64, distance int, t time.Duration) (r transport.Transport) {
-	if s, ok := mpx.routes.DiscoverTimeout(route.RndDistSelector{}, remote, t); ok && s.Distance <= distance {
+	if s, ok := mpx.routes.DiscoverTimeout(route.RndDistSelector{}, remote, t, nil); ok && s.Distance <= distance {
 		r = s.Upstream
 	}
 	return
@@ -733,7 +733,7 @@ func (mpx *multiplexer) fwd(job protocol.Op, upstream transport.Transport) {
 		return
 	}
 
-	var dst, found = mpx.routes.DiscoverTimeout(route.RndDistSelector{}, job.Remote, 0)
+	var dst, found = mpx.routes.DiscoverTimeout(route.RndDistSelector{}, job.Remote, 0, nil)
 	if !found || dst.Distance > 1 {
 		mpx.Log.VLog(10, func(l *log.Logger) {
 			l.Println("Can't forward to", addr.Uint2Host(job.Remote))
