@@ -20,7 +20,7 @@ type Registry struct {
 func (self *Registry) init() {
 	self.initCtl.Do(func() {
 		self.sMap = BTreeNew()
-		self.rCond.L = &self.rLock
+		self.rCond.L = self.rLock.RLocker()
 	})
 }
 
@@ -54,7 +54,7 @@ func (self *Registry) DiscoverTimeout(
 
 	var started = time.Now()
 	var stopAt = started.Add(wait)
-	self.rLock.Lock()
+	self.rLock.RLock()
 	for {
 
 		var tPool = make([]ServiceInfo, 0)
@@ -70,15 +70,16 @@ func (self *Registry) DiscoverTimeout(
 				continue
 			}
 		} else {
+			self.rLock.RUnlock()
 			if reducer != nil {
 				tPool = reducer.Reduce(tPool)
 			}
 			srv, found = tPool[r.Select(tPool)], true
+			break
 		}
+		self.rLock.RUnlock()
 		break
-
 	}
-	self.rLock.Unlock()
 
 	return
 }
