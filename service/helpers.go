@@ -60,17 +60,17 @@ func (hrs HashRingSelector) Select(pool []ServiceInfo) (idx int) {
 	if hrs.VBucket == 0 {
 		return int(rand.Int31n(int32(len(pool))))
 	}
-	var hr = consistent.New()
+
+	var hr, psMap = consistent.New(), make(map[string]int, len(pool))
 	hr.NumberOfReplicas = 1024
-	var psMap = make(map[string]int, len(pool))
+	var repr = make([]string, 0, len(pool))
 	for idx, p := range pool {
-		var pRepr = fmt.Sprint(p)
-		if _, found := psMap[pRepr]; found {
-			panic("Inconsistent string repr")
-		}
-		psMap[pRepr] = idx
-		hr.Add(pRepr)
+		var pS = fmt.Sprint(p)
+		repr = append(repr, pS)
+		psMap[pS] = idx
 	}
+	hr.Set(repr)
+
 	var idKey, _ = hr.Get(strconv.Itoa(hrs.VBucket))
 	return psMap[idKey]
 }
