@@ -54,7 +54,7 @@ func main() {
 	go echoLoop(l3)
 
 	for {
-		var echoReq, dialErr = astraNet3.Dial("", "skynet2")
+		var echoReq, dialErr = astraNet3.Dial("vport2registry", "skynet2:10000")
 		if dialErr != nil {
 			panic(dialErr)
 		}

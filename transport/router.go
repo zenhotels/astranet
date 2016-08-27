@@ -45,9 +45,9 @@ func (self *Router) CloseHandle(filter Filter, el *list.Element) {
 	var eMap = self.cbMap[filter]
 	if eMap != nil {
 		eMap.Remove(el)
-	}
-	if eMap.Len() == 0 {
-		delete(self.cbMap, filter)
+		if eMap.Len() == 0 {
+			delete(self.cbMap, filter)
+		}
 	}
 	self.cbLock.Unlock()
 }
