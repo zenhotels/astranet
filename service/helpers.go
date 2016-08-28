@@ -43,23 +43,23 @@ type Pair struct {
 }
 
 type Selector interface {
-	Select(pool []ServiceInfo) (idx int) // pool can't empty
+	Select(pool []ServiceInfo) (idx int, cache bool) // pool can't empty
 }
 
 type RandomSelector struct {
 }
 
-func (RandomSelector) Select(pool []ServiceInfo) (idx int) {
-	return int(rand.Int31n(int32(len(pool))))
+func (RandomSelector) Select(pool []ServiceInfo) (idx int, cache bool) {
+	return int(rand.Int31n(int32(len(pool)))), false
 }
 
 type HashRingSelector struct {
 	VBucket int
 }
 
-func (hrs HashRingSelector) Select(pool []ServiceInfo) (idx int) {
+func (hrs HashRingSelector) Select(pool []ServiceInfo) (idx int, cache bool) {
 	if hrs.VBucket == 0 {
-		return int(rand.Int31n(int32(len(pool))))
+		return int(rand.Int31n(int32(len(pool)))), false
 	}
 
 	var sPool = make([]string, len(pool))
@@ -70,7 +70,7 @@ func (hrs HashRingSelector) Select(pool []ServiceInfo) (idx int) {
 	}
 	var c = hashring.New(sPool)
 	var selected, _ = c.GetNode(strconv.Itoa(hrs.VBucket))
-	return node2Idx[selected]
+	return node2Idx[selected], true
 }
 
 type Reducer interface {
