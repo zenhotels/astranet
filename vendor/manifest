@@ -8,6 +8,12 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/serialx/hashring",
+			"repository": "https://github.com/serialx/hashring",
+			"revision": "75d57fa264ad17fd929304dfdb02c8e278c5c01c",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/stathat/consistent",
 			"repository": "https://github.com/stathat/consistent",
 			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
@@ -17,12 +23,6 @@
 			"importpath": "github.com/zenhotels/btree-2d",
 			"repository": "https://github.com/zenhotels/btree-2d",
 			"revision": "61901d6b1c202c811230766280183784276c9657",
-			"branch": "master"
-		},
-		{
-			"importpath": "stathat.com/c/consistent",
-			"repository": "https://github.com/stathat/consistent",
-			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
 			"branch": "master"
 		}
 	]

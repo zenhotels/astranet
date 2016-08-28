@@ -1,14 +1,15 @@
 package route
 
 import (
-	"fmt"
 	"math/rand"
-	"strconv"
 	"sync/atomic"
 
 	"time"
 
-	"stathat.com/c/consistent"
+	"fmt"
+	"strconv"
+
+	"github.com/serialx/hashring"
 )
 
 var BTreeNew func() BTree2D
@@ -61,18 +62,15 @@ func (hrs HashRingSelector) Select(pool []RouteInfo) (idx int) {
 		return int(rand.Int31n(int32(len(pool))))
 	}
 
-	var hr, psMap = consistent.New(), make(map[string]int, len(pool))
-	hr.NumberOfReplicas = 1024
-	var repr = make([]string, 0, len(pool))
+	var sPool = make([]string, len(pool))
+	var node2Idx = make(map[string]int, len(pool))
 	for idx, p := range pool {
-		var pS = fmt.Sprint(p)
-		repr = append(repr, pS)
-		psMap[pS] = idx
+		sPool[idx] = fmt.Sprint(p)
+		node2Idx[sPool[idx]] = idx
 	}
-	hr.Set(repr)
-
-	var idKey, _ = hr.Get(strconv.Itoa(hrs.VBucket))
-	return psMap[idKey]
+	var c = hashring.New(sPool)
+	var selected, _ = c.GetNode(strconv.Itoa(hrs.VBucket))
+	return node2Idx[selected]
 }
 
 type Reducer interface {
