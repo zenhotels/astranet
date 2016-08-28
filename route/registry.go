@@ -109,14 +109,17 @@ func (self *Registry) DiscoverTimeout(
 			if reducer != nil {
 				tPool = reducer.Reduce(tPool)
 			}
-			srv, found = tPool[r.Select(tPool)], true
+			var tIdx, shouldCache = r.Select(tPool)
+			srv, found = tPool[tIdx], true
 
-			self.sLock.Lock()
-			var cGr = self.sCache[cVer]
-			if cGr != nil {
-				cGr[cKey] = srv
+			if shouldCache {
+				self.sLock.Lock()
+				var cGr = self.sCache[cVer]
+				if cGr != nil {
+					cGr[cKey] = srv
+				}
+				self.sLock.Unlock()
 			}
-			self.sLock.Unlock()
 
 			break
 		}
