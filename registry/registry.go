@@ -9,6 +9,12 @@ import (
 	"github.com/zenhotels/astranet/skykiss"
 )
 
+type rCacheKey struct {
+	sname generic.T
+	s     Selector
+	r     Reducer
+}
+
 type Registry struct {
 	sMap    BTree2D
 	rLock   sync.RWMutex
@@ -16,17 +22,33 @@ type Registry struct {
 	rRev    uint64
 	closed  uint64
 	initCtl sync.Once
+
+	sCache map[uint64]map[rCacheKey]generic.U
+	sLock  sync.RWMutex
 }
 
 func (self *Registry) init() {
 	self.initCtl.Do(func() {
 		self.sMap = BTreeNew()
 		self.rCond.L = self.rLock.RLocker()
+		self.sCache = make(map[uint64]map[rCacheKey]generic.U)
 	})
 }
 
 func (self *Registry) touch() {
-	atomic.AddUint64(&self.rRev, 1)
+	var nVer = atomic.AddUint64(&self.rRev, 1)
+
+	self.sLock.Lock()
+	if self.sCache[nVer] == nil {
+		self.sCache[nVer] = make(map[rCacheKey]generic.U)
+	}
+	for v, _ := range self.sCache {
+		if v < nVer {
+			delete(self.sCache, v)
+		}
+	}
+	self.sLock.Unlock()
+
 	self.rCond.Broadcast()
 }
 
@@ -57,6 +79,19 @@ func (self *Registry) DiscoverTimeout(
 	var stopAt = started.Add(wait)
 	self.rLock.RLock()
 	for {
+		var cKey = rCacheKey{sname, r, reducer}
+		var cVer = atomic.LoadUint64(&self.rRev)
+		self.sLock.RLock()
+		var cGr = self.sCache[cVer]
+		if cGr != nil {
+			srv, found = cGr[cKey]
+		}
+		self.sLock.RUnlock()
+
+		if found {
+			self.rLock.RUnlock()
+			break
+		}
 
 		var tPool = make([]generic.U, 0)
 		self.sMap.ForEach2(sname, func(k2 generic.U) bool {
@@ -76,6 +111,14 @@ func (self *Registry) DiscoverTimeout(
 				tPool = reducer.Reduce(tPool)
 			}
 			srv, found = tPool[r.Select(tPool)], true
+
+			self.sLock.Lock()
+			var cGr = self.sCache[cVer]
+			if cGr != nil {
+				cGr[cKey] = srv
+			}
+			self.sLock.Unlock()
+
 			break
 		}
 		self.rLock.RUnlock()
