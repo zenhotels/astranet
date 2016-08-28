@@ -23,7 +23,7 @@ func (r RouteInfo) String() string {
 type RndDistSelector struct {
 }
 
-func (RndDistSelector) Select(pool []RouteInfo) int {
+func (RndDistSelector) Select(pool []RouteInfo) (int, bool) {
 	var lowDist = pool[0].Distance
 	var lowDistCount = 0
 	for _, p := range pool {
@@ -44,10 +44,10 @@ func (RndDistSelector) Select(pool []RouteInfo) int {
 			iterSeqId++
 		}
 		if iterSeqId == bestSeqId {
-			return idx
+			return idx, false
 		}
 	}
-	return 0
+	return 0, false
 }
 
 func init() {
