@@ -19,6 +19,7 @@ func main() {
 	flag.Parse()
 
 	var astraNet = astranet.New().Client().WithEnv(*name, "chat")
+	astraNet.Join("tcp4", "0.0.0.0:20000")
 	var httpClient = &http.Client{
 		Transport: &http.Transport{
 			Dial: astraNet.HttpDial,
