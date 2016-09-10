@@ -41,6 +41,7 @@ func (self *Router) Handle(cb Callback, filters ...Filter) Handler {
 }
 
 func (self *Router) CloseHandle(filter Filter, el *list.Element) {
+	self.init()
 	self.cbLock.Lock()
 	var eMap = self.cbMap[filter]
 	if eMap != nil {
