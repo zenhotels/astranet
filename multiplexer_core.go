@@ -87,8 +87,6 @@ type multiplexer struct {
 	fwdCache map[routeId]transport.Transport
 	fwdLock  sync.RWMutex
 
-	httpc *http.Client
-
 	routes        route.Registry
 	services      service.Registry
 	neighbourhood service.Registry
@@ -120,10 +118,6 @@ func (mpx *multiplexer) init() {
 		mpx.lhosts = make(map[string]bool)
 		mpx.lports = make(map[string]bool)
 		mpx.lNew.L = &mpx.lAddrLock
-		mpx.httpc = &http.Client{
-			Transport: &http.Transport{Dial: mpx.Dial},
-			Timeout:   10 * time.Second,
-		}
 		mpx.fwdCache = make(map[routeId]transport.Transport)
 		mpx.rstHndl = make(map[rstLoc]map[uint64]net.Conn)
 
