@@ -1,47 +1,13 @@
 package service
 
 import (
+	"hash/crc64"
 	"math/rand"
 	"testing"
-
-	"math"
-
-	"hash/crc64"
-
 	"time"
 
 	"github.com/zenhotels/astranet/skykiss"
 )
-
-func TestHashRing(t *testing.T) {
-	var hosts = make([]ServiceInfo, 0)
-	var objCut uint64 = 10
-	var objTotal uint64 = 1000
-	var variance = 0.3
-	for i := uint64(0); i < objCut; i++ {
-		hosts = append(hosts, ServiceInfo{
-			Host:    uint64(idGen.Int63()),
-			Service: "test",
-		})
-	}
-
-	// Check hash ring selector random distribution
-	var hrMapHist = map[uint64]uint64{}
-	for i := uint64(0); i < objTotal; i++ {
-		var hr = &HashRingSelector{
-			VBucket: int(rand.Int63()),
-		}
-		var selected = uint64(hr.Select(hosts))
-		hrMapHist[selected] = hrMapHist[selected] + 1
-	}
-	for _, num := range hrMapHist {
-		var diff = float64(num*objCut) - float64(objTotal)
-		if math.Abs(diff/float64(objTotal)) > variance {
-			t.Log(num, math.Abs(diff/float64(objTotal)))
-			t.Fail()
-		}
-	}
-}
 
 func BenchmarkHashRing(b *testing.B) {
 	var reg Registry

@@ -8,6 +8,20 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/davecgh/go-spew/spew",
+			"repository": "https://github.com/davecgh/go-spew",
+			"revision": "6d212800a42e8ab5c146b8ace3490ee17e5225f9",
+			"branch": "master",
+			"path": "/spew"
+		},
+		{
+			"importpath": "github.com/pmezard/go-difflib/difflib",
+			"repository": "https://github.com/pmezard/go-difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
+			"branch": "master",
+			"path": "/difflib"
+		},
+		{
 			"importpath": "github.com/serialx/hashring",
 			"repository": "https://github.com/serialx/hashring",
 			"revision": "75d57fa264ad17fd929304dfdb02c8e278c5c01c",
@@ -18,6 +32,13 @@
 			"repository": "https://github.com/stathat/consistent",
 			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
 			"branch": "master"
+		},
+		{
+			"importpath": "github.com/stretchr/testify/assert",
+			"repository": "https://github.com/stretchr/testify",
+			"revision": "d77da356e56a7428ad25149ca77381849a6a5232",
+			"branch": "master",
+			"path": "/assert"
 		},
 		{
 			"importpath": "github.com/zenhotels/btree-2d",

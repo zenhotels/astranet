@@ -1,0 +1,12 @@
+---
+language: go
+sudo: false
+
+go:
+  - 1.7
+  - 1.6
+
+install: true
+
+script:
+  - bash tests.sh
