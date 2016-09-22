@@ -15,11 +15,16 @@ import (
 
 	"github.com/rcrowley/go-metrics"
 	"github.com/zenhotels/astranet"
+	"flag"
 )
 
 var astraNet = astranet.New()
 
+var numStreams = flag.Int("streams", 32*1024*10, "number of test streams to create")
+
 func main() {
+	flag.Parse()
+
 	var lErr = astraNet.ListenAndServe("tcp4", ":19080")
 	if lErr != nil {
 		panic(lErr)
@@ -99,16 +104,12 @@ func main() {
 
 	go metrics.Log(metrics.DefaultRegistry, 5*time.Second, log.New(os.Stderr, "metrics: ", log.Lmicroseconds))
 
-	for i := 0; i < 32*1024*10; i++ {
+	for i := 0; i < *numStreams; i++ {
 		atomic.AddInt64(&tail, 1)
 		go client()
 		time.Sleep(10 * time.Duration(rand.Int63n(10)) * time.Microsecond)
 		if i%100 == 0 {
 			fmt.Println(i, atomic.LoadInt64(&tail))
 		}
-	}
-	for i := 0; i < 600; i++ {
-		time.Sleep(time.Second)
-		fmt.Println(i, tail)
 	}
 }

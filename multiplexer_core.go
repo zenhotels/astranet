@@ -528,6 +528,14 @@ func (mpx *multiplexer) attachNonBlock(conn io.ReadWriter) (transport.Transport,
 	var keepalive = time.Second * 10
 
 	var caps = clientCaps{init: make(chan struct{})}
+	var capsLock sync.Mutex
+
+	var withCaps = func(cb func(caps *clientCaps)) {
+		capsLock.Lock()
+		cb(&caps)
+		capsLock.Unlock()
+	}
+
 	var mpxHndl transport.Callback
 	var opCb = func(job protocol.Op, upstream transport.Transport) {
 		switch job.Cmd {
@@ -542,9 +550,11 @@ func (mpx *multiplexer) attachNonBlock(conn io.ReadWriter) (transport.Transport,
 					l.Println("Handshake err", addr.Uint2Host(job.Local), decErr)
 				})
 			default:
-				caps.ImprovedOpService = true
-				caps.Host = job.Local
-				caps.Upstream = upstream
+				withCaps(func(caps *clientCaps) {
+					caps.ImprovedOpService = true
+					caps.Host = job.Local
+					caps.Upstream = upstream
+				})
 			}
 			caps.Close()
 		default:
@@ -554,17 +564,21 @@ func (mpx *multiplexer) attachNonBlock(conn io.ReadWriter) (transport.Transport,
 		}
 	}
 
-	caps.Upstream = transport.Upstream(conn, mpx.Log, opCb, keepalive)
+	withCaps(func(caps *clientCaps) {
+		caps.Upstream = transport.Upstream(conn, mpx.Log, opCb, keepalive)
+	})
 	mpxHndl = mpx.EventHandler(&wg, &caps)
 
 	// --- Send handshake frame ---
 	var wInfo WelcomeInfo
-	if caps.Upstream.RAddr() != nil {
-		wInfo.RAddr = caps.Upstream.RAddr().String()
-	}
-	var wFrame = protocol.Op{Cmd: opHandshake, Local: mpx.local}
-	wFrame.Data.Bytes, _ = json.Marshal(wInfo)
-	caps.Upstream.Queue(wFrame)
+	withCaps(func(caps *clientCaps) {
+		if caps.Upstream.RAddr() != nil {
+			wInfo.RAddr = caps.Upstream.RAddr().String()
+		}
+		var wFrame = protocol.Op{Cmd: opHandshake, Local: mpx.local}
+		wFrame.Data.Bytes, _ = json.Marshal(wInfo)
+		caps.Upstream.Queue(wFrame)
+	})
 	// ---
 
 	var w4handshake = time.NewTimer(time.Second * 10)
