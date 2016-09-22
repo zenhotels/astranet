@@ -7,8 +7,8 @@ go:
   - 1.6
 
 install:
-  - go get github.com/davecgh/go-spew
-  - go get github.com/pmezard/go-difflib
+  - go get github.com/davecgh/go-spew/spew
+  - go get github.com/pmezard/go-difflib/difflib
   - go get github.com/stretchr/testify
   - go get github.com/rcrowley/go-metrics
   - go get github.com/julienschmidt/httprouter
