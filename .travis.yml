@@ -6,7 +6,13 @@ go:
   - 1.7
   - 1.6
 
-install: true
+install:
+  - go get github.com/davecgh/go-spew
+  - go get github.com/pmezard/go-difflib
+  - go get github.com/stretchr/testify
+  - go get github.com/rcrowley/go-metrics
+  - go get github.com/julienschmidt/httprouter
+  - go get github.com/joeshaw/gengen
 
 script:
   - bash tests.sh
