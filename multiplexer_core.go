@@ -336,7 +336,7 @@ func (mpx *multiplexer) bind(network string, port uint32, s string) (net.Listene
 	if s != "" {
 		mpx.services.Push(s, lr.ServiceInfo)
 		mpx.neighbourhood.Push(s, lr.ServiceInfo)
-		lr.OnClose(func() {
+		lr.OnPreClose(func() {
 			mpx.services.Pop(s, lr.ServiceInfo)
 			mpx.neighbourhood.Pop(s, lr.ServiceInfo)
 		})

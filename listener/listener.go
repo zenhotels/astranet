@@ -28,8 +28,10 @@ type Listener struct {
 	opLock  sync.Mutex
 	opNew   sync.Cond
 
-	closed  uint32
-	onClose []func()
+	closed      uint32
+	preClosed   uint32
+	beforeClose []func()
+	onClose     []func()
 }
 
 func New(network string, hostId uint64, lPort uint32, service string) *Listener {
@@ -42,6 +44,10 @@ func New(network string, hostId uint64, lPort uint32, service string) *Listener 
 	return self
 }
 
+func (self *Listener) OnPreClose(c func()) {
+	self.beforeClose = append(self.beforeClose, c)
+}
+
 func (self *Listener) OnClose(c func()) {
 	self.onClose = append(self.onClose, c)
 }
@@ -50,7 +56,19 @@ func (self *Listener) Close() error {
 	var cLock = atomic.AddUint32(&self.closed, 1)
 	self.opNew.Broadcast()
 	if cLock == 1 {
+		self.PreClose()
 		for _, c := range self.onClose {
+			c()
+		}
+	}
+	return nil
+}
+
+func (self *Listener) PreClose() error {
+	var cLock = atomic.AddUint32(&self.preClosed, 1)
+	self.opNew.Broadcast()
+	if cLock == 1 {
+		for _, c := range self.beforeClose {
 			c()
 		}
 	}
