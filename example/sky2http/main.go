@@ -33,7 +33,7 @@ var reverse = &httputil.ReverseProxy{
 	},
 	FlushInterval: time.Millisecond * 10,
 	Director: func(req *http.Request) {
-		for _, suffix := range []string{".p.hotcore.in", ".l.hotcore.in"} {
+		for _, suffix := range suffixes {
 			if strings.HasSuffix(req.Host, suffix) {
 				req.Host = req.Host[0 : len(req.Host)-len(suffix)]
 			}
@@ -60,8 +60,19 @@ func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 var httpPort = flag.Int("listen", 8081, "HTTP port to bind")
 var infoPort = flag.Int("info", 8080, "HTTP port to bind")
 
+var suffixes []string
+
 func main() {
+	suffixesArg := flag.String("suffixes", "", "comma-separated list of supported domain suffixes")
 	flag.Parse()
+
+	if len(*suffixesArg) != 0 {
+		suffixes = strings.Split(*suffixesArg, `,`)
+	} else {
+		// for backward compatibility
+		suffixes = []string{".p.hotcore.in", ".l.hotcore.in"}
+	}
+
 	if srvErr := astraNet.ListenAndServe("tcp4", "0.0.0.0:10000"); srvErr != nil {
 		log.Panicln(srvErr)
 	}
