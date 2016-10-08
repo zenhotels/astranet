@@ -37,30 +37,70 @@ func (prev *dumbmap2d) Sync(nextMap BTree2D, onAdd, onDel func(key1 generic.T, k
 	defer next.lock.Unlock()
 
 	for key, layer := range prev.store {
-		if _, ok := next.store[key]; !ok {
-			// deleted in the next revision
+		nextLayer, ok := next.store[key]
+		if !ok { // deleted in the next revision
+			nextLayer = NewSecondaryLayer()
 			delete(prev.store, key)
+
 			if onDel != nil {
-				layer.Sync(NewSecondaryLayer(), nil, func(key2 generic.U) {
+				layer.Sync(nextLayer, nil, func(key2 generic.U) {
 					onDel(key, key2)
 				})
-			} else {
-				layer.Sync(NewSecondaryLayer(), nil, nil)
 			}
+			continue
+		}
+		// partial sync
+		switch {
+		case onAdd == nil && onDel == nil:
+			layer.Sync(nextLayer, nil, nil)
+		case onAdd == nil:
+			layer.Sync(nextLayer, nil, func(key2 generic.U) {
+				onDel(key, key2)
+			})
+		case onDel == nil:
+			layer.Sync(nextLayer, func(key2 generic.U) {
+				onAdd(key, key2)
+			}, nil)
+		default:
+			layer.Sync(nextLayer, func(key2 generic.U) {
+				onAdd(key, key2)
+			}, func(key2 generic.U) {
+				onDel(key, key2)
+			})
 		}
 	}
+
 	for key, layer := range next.store {
-		if _, ok := prev.store[key]; !ok {
-			// added in the next revision
-			newLayer := NewSecondaryLayer()
+		prevLayer, ok := prev.store[key]
+		if !ok { // added in the next revision
+			prevLayer = NewSecondaryLayer()
+			prev.store[key] = prevLayer
+
 			if onAdd != nil {
-				newLayer.Sync(layer, nil, func(key2 generic.U) {
+				prevLayer.Sync(layer, func(key2 generic.U) {
 					onAdd(key, key2)
-				})
-			} else {
-				newLayer.Sync(layer, nil, nil)
+				}, nil)
 			}
-			prev.store[key] = newLayer
+			continue
+		}
+		// partial sync
+		switch {
+		case onAdd == nil && onDel == nil:
+			prevLayer.Sync(layer, nil, nil)
+		case onAdd == nil:
+			prevLayer.Sync(layer, nil, func(key2 generic.U) {
+				onDel(key, key2)
+			})
+		case onDel == nil:
+			prevLayer.Sync(layer, func(key2 generic.U) {
+				onAdd(key, key2)
+			}, nil)
+		default:
+			prevLayer.Sync(layer, func(key2 generic.U) {
+				onAdd(key, key2)
+			}, func(key2 generic.U) {
+				onDel(key, key2)
+			})
 		}
 	}
 }
