@@ -3,10 +3,6 @@ package service
 import (
 	"fmt"
 
-	"strings"
-
-	"reflect"
-
 	"github.com/zenhotels/astranet/addr"
 	"github.com/zenhotels/astranet/transport"
 )
@@ -29,49 +25,7 @@ func (r ServiceInfo) String() string {
 
 func init() {
 	BTreeNew = func() BTree2D {
-		return New(func(k1, k2 string) int {
-			return strings.Compare(k1, k2)
-		}, func(k1, k2 ServiceInfo) int {
-			if k1.Service < k2.Service {
-				return -1
-			}
-			if k1.Service > k2.Service {
-				return 1
-			}
-			if k1.Host < k2.Host {
-				return -1
-			}
-			if k1.Host > k2.Host {
-				return 1
-			}
-			if k1.Port < k2.Port {
-				return -1
-			}
-			if k1.Port > k2.Port {
-				return 1
-			}
-			if k1.Priority < k2.Priority {
-				return -1
-			}
-			if k1.Priority > k2.Priority {
-				return 1
-			}
-			var k1V uintptr = 0
-			var k2V uintptr = 0
-			if k1.Upstream != nil {
-				k1V = reflect.ValueOf(k1.Upstream).Elem().UnsafeAddr()
-			}
-			if k2.Upstream != nil {
-				k2V = reflect.ValueOf(k2.Upstream).Elem().UnsafeAddr()
-			}
-			if k1V < k2V {
-				return -1
-			}
-			if k1V > k2V {
-				return 1
-			}
-			return 0
-		})
+		return New()
 	}
 }
 
@@ -98,7 +52,7 @@ var UniqueHP = uniqueHostPort{}
 //go:generate gengen github.com/zenhotels/astranet/registry string ServiceInfo
 //go:generate bash -c "ls | xargs -n1 sed -i .bak 's/^package registry/package service/g'"
 
-//go:generate gengen github.com/zenhotels/btree-2d string ServiceInfo
-//go:generate bash -c "ls | xargs -n1 sed -i .bak 's/^package btree2d/package service/g'"
+//go:generate gengen github.com/zenhotels/dumbmap-2d string ServiceInfo
+//go:generate bash -c "ls | xargs -n1 sed -i .bak 's/^package dumbmap2d/package service/g'"
 
 //go:generate bash -c "rm -f *.bak"
