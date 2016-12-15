@@ -13,6 +13,7 @@ install:
   - go get github.com/rcrowley/go-metrics
   - go get github.com/julienschmidt/httprouter
   - go get github.com/joeshaw/gengen
+  - go get github.com/vulcand/oxy/forward
 
 script:
   - bash tests.sh
