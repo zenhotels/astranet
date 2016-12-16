@@ -35,10 +35,9 @@ func checker(ready_ch, close_ch chan bool, url string) {
 
 	var ready bool
 	for {
-		log.Println(ready, url)
 		var resp, respErr = client.Get(url)
 		if respErr != nil {
-			log.Println(url, respErr)
+			log.Printf("HTTP GET Failure %v\n", respErr)
 		}
 		if respErr == nil {
 			resp.Body.Close()
@@ -50,6 +49,7 @@ func checker(ready_ch, close_ch chan bool, url string) {
 				time.Sleep(*recheck)
 				continue
 			}
+			log.Printf("HTTP GET Bad Status %v\n", resp.Status)
 		}
 		if ready {
 			close(close_ch)
