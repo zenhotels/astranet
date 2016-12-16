@@ -17,6 +17,8 @@ import (
 	"github.com/zenhotels/astranet"
 	"github.com/vulcand/oxy/forward"
 	"fmt"
+	"os/signal"
+	"syscall"
 )
 
 var httpPort = flag.Int("port", 8080, "HTTP port of application to publish")
@@ -27,6 +29,7 @@ var check_url = flag.String("check_url", "/", "Url to check the service for to t
 var timeout = flag.Duration("timeout", time.Millisecond*100, "timeout for URL response")
 var retry = flag.Duration("retry", time.Millisecond*1000, "duration for retry FAILED URL response")
 var recheck = flag.Duration("recheck", time.Millisecond*100, "duration for retry OK URL response")
+var shutdown_timeout = flag.Duration("wait", time.Second*20, "duration to wait before handle shut down")
 
 func checker(ready_ch, close_ch chan bool, url string) {
 	var client = &http.Client{
@@ -65,6 +68,15 @@ func main() {
 	var astraNet = astranet.New().Server()
 	astraNet.ListenAndServe("", *bind)
 
+	var shutdown = make(chan struct{})
+	var signal_ch = make(chan os.Signal, 2)
+	signal.Notify(signal_ch, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-signal_ch
+		close(shutdown)
+	}()
+
 	var transport = &http.Transport{
 		Dial: func(lnet, _ string) (net.Conn, error) {
 			return net.Dial(lnet, ":"+strconv.Itoa(*httpPort))
@@ -91,8 +103,12 @@ func main() {
 			go http.Serve(fwdService, forwarder)
 			defer fwdService.Close()
 		case <-close_ch:
+		case <-shutdown:
 		}
-		<-close_ch
+		select {
+		case <-close_ch:
+		case <-shutdown:
+		}
 	}
 	go func() { //bind_loop
 		var check_url = fmt.Sprintf("http://127.0.0.1:%d%s", *httpPort, *check_url)
@@ -101,6 +117,13 @@ func main() {
 			var close_ch = make(chan bool, 0)
 			go checker(ready_ch, close_ch, check_url)
 			binder(ready_ch, close_ch)
+
+			select {
+			case <-shutdown:
+				time.Sleep(*shutdown_timeout)
+				os.Exit(0)
+			default:
+			}
 		}
 	}()
 
