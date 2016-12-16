@@ -16,24 +16,57 @@ import (
 	"github.com/zenhotels/btree-2d/uuid"
 	"github.com/zenhotels/astranet"
 	"github.com/vulcand/oxy/forward"
+	"fmt"
 )
 
 var httpPort = flag.Int("port", 8080, "HTTP port of application to publish")
 var bind = flag.String("bind", "0.0.0.0:10000", "TCP address to bind astranet engine to")
 var appName = flag.String("name", uuid.NewV4().String(), "name of application to publish")
 var cmd = flag.String("cmd", "", "command to execute (you can start your server here)")
+var check_url = flag.String("check_url", "/", "Url to check the service for to treat as live")
+var timeout = flag.Duration("timeout", time.Millisecond*100, "timeout for URL response")
+var retry = flag.Duration("retry", time.Millisecond*1000, "duration for retry FAILED URL response")
+var recheck = flag.Duration("recheck", time.Millisecond*100, "duration for retry OK URL response")
+
+func checker(ready_ch, close_ch chan bool, url string) {
+	var client = &http.Client{
+		Timeout: *timeout,
+	}
+
+	var ready bool
+	for {
+		log.Println(ready, url)
+		var resp, respErr = client.Get(url)
+		if respErr != nil {
+			log.Println(url, respErr)
+		}
+		if respErr == nil {
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				if !ready {
+					ready = true
+					close(ready_ch)
+				}
+				time.Sleep(*recheck)
+				continue
+			}
+		}
+		if ready {
+			close(close_ch)
+			break
+		}
+		time.Sleep(*retry)
+	}
+}
 
 func main() {
 	flag.Parse()
+	log.Println(timeout, retry, recheck)
 	var astraNet = astranet.New().Server()
 	astraNet.ListenAndServe("", *bind)
-	var fwdService, fwdErr = astraNet.Bind("", *appName)
-	if fwdErr != nil {
-		log.Panicln(fwdService)
-	}
 
 	var transport = &http.Transport{
-		Dial: func(lnet, laddr string) (net.Conn, error) {
+		Dial: func(lnet, _ string) (net.Conn, error) {
 			return net.Dial(lnet, ":"+strconv.Itoa(*httpPort))
 		},
 		DisableKeepAlives:     true,
@@ -48,8 +81,30 @@ func main() {
 		forward.RoundTripper(transport),
 	)
 
+	var binder = func(ready_ch, close_ch chan bool) {
+		select {
+		case <-ready_ch:
+			var fwdService, fwdErr = astraNet.Bind("", *appName)
+			if fwdErr != nil {
+				log.Panicln(fwdService)
+			}
+			go http.Serve(fwdService, forwarder)
+			defer fwdService.Close()
+		case <-close_ch:
+		}
+		<-close_ch
+	}
+	go func() { //bind_loop
+		var check_url = fmt.Sprintf("http://127.0.0.1:%d%s", *httpPort, *check_url)
+		for {
+			var ready_ch = make(chan bool, 0)
+			var close_ch = make(chan bool, 0)
+			go checker(ready_ch, close_ch, check_url)
+			binder(ready_ch, close_ch)
+		}
+	}()
+
 	if len(*cmd) > 0 {
-		go http.Serve(fwdService, forwarder)
 		var command = exec.Cmd{
 			Path:   "/bin/bash",
 			Args:   []string{"bash", "-c", *cmd},
@@ -61,5 +116,8 @@ func main() {
 		if runErr != nil {
 			log.Panic(runErr)
 		}
+	} else {
+		var hung chan bool
+		<-hung
 	}
 }
