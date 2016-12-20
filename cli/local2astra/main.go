@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os/signal"
 	"syscall"
+	"strings"
+	"github.com/vulcand/oxy/testutils"
 )
 
 var httpPort = flag.Int("port", 8080, "HTTP port of application to publish")
@@ -92,6 +94,15 @@ func main() {
 		forward.PassHostHeader(true),
 		forward.RoundTripper(transport),
 	)
+	var fwd_func = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		var query = req.RequestURI
+		if !strings.HasPrefix(query, "/") {
+			query = "/" + query
+		}
+		req.URL = testutils.ParseURI("http://" + req.Host + query)
+		req.RequestURI = query
+		forwarder.ServeHTTP(w, req)
+	})
 
 	var binder = func(ready_ch, close_ch chan bool) {
 		select {
@@ -100,7 +111,7 @@ func main() {
 			if fwdErr != nil {
 				log.Panicln(fwdService)
 			}
-			go http.Serve(fwdService, forwarder)
+			go http.Serve(fwdService, fwd_func)
 			defer fwdService.Close()
 		case <-close_ch:
 		case <-shutdown:
